@@ -31,15 +31,18 @@ class KindOfClass(ctypes.c_void_p):
         # TODO: bitfields??
         fields = struct._fields_ = [
                 ('class_', ctypes.POINTER(None)) # TODO: well, include the _Object struct
-                ]
-        fields.extend(cls.fields)
+                ] + cls.fields
 #        struct._anonymous_ = ('__super__',)
         cls._struct = struct
+
+    @property
+    def contents(self):
+        return ctypes.cast(self, ctypes.POINTER(type(self)._struct)).contents
 
     @classmethod
     def setup(cls):
         if cls._struct is None:
-            self._setup()
+            cls._setup()
 
     @classmethod
     def _get_name(cls, name):
@@ -50,11 +53,13 @@ class KindOfClass(ctypes.c_void_p):
 
     @classmethod
     def method(cls, name, restype=None, argtypes=None):
+        cls.setup()
         if cls._library is None:
             raise BindingError("You have to bind the class to a library!")
         name = cls._get_name(name)
         func = cls._library[name]
-        func.argtypes = [ctypes.POINTER(cls._struct)]
+        # We'll just say the `this` pointer is a void pointer for convenience.
+        func.argtypes = [ctypes.POINTER(None)]
         if restype is not None:
             func.restype = restype
         if argtypes is not None:
@@ -63,6 +68,7 @@ class KindOfClass(ctypes.c_void_p):
 
     @classmethod
     def static_method(cls, name, restype=None, argtypes=None):
+        cls.setup()
         if cls._library is None:
             raise BindingError("You have to bind the class to a library!")
         name = cls._get_name(name)

@@ -4,7 +4,9 @@ from pyooc import types
 lib = pyooc.Library('./libtest.so')
 
 class Yay(pyooc.Class):
-    pass
+    fields = [
+            ('message', types.String),
+            ]
 
 Yay.bind(lib)
 Yay.add_constructor()
@@ -16,3 +18,6 @@ with_.greet()
 
 without = Yay.new()
 without.greet()
+
+print 'I got the message:', with_.contents.message
+
