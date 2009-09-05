@@ -8,33 +8,8 @@ class BindingError(Exception):
 # Hey, we've got to load libgc!
 GC = ctypes.CDLL(ctypes.util.find_library('gc'), ctypes.RTLD_GLOBAL)
 
-def _parse_function(name):
-    """
-        return a tuple ``(function name, suffix)``.
-        *name* is a string like ``"coffee ~withMilk"``, and
-        the return value will be ``("coffee", "withMilk")``.
-    """
-    if '~' in name:
-        return tuple(item.strip() for item in name.split('~', 1))
-    else:
-        return (name, '')
-
-def _get_function_name(name):
-    base, suffix = _parse_function(name)
-    if suffix:
-        return base + '_' + suffix
-    else:
-        return base
-    
 class Library(ctypes.CDLL):
-    def __getitem__(self, name):
-        """
-            return a function
-        """
-        return ctypes.CDLL.__getitem__(self, _get_function_name(name))
-
-def _normalize_name(name):
-    return name.replace(' ', '')
+    pass
 
 class KindOfClass(ctypes.c_void_p):
     name = None
@@ -45,9 +20,6 @@ class KindOfClass(ctypes.c_void_p):
     @classmethod
     def bind(cls, lib):
         cls._library = lib
-
-    def __getitem__(self, name):
-        return getattr(self, _normalize_name(name))
 
     @classmethod
     def _setup(cls):
@@ -78,7 +50,6 @@ class KindOfClass(ctypes.c_void_p):
 
     @classmethod
     def method(cls, name, restype=None, argtypes=None):
-        name = _normalize_name(name)
         if cls._library is None:
             raise BindingError("You have to bind the class to a library!")
         name = cls._get_name(name)
@@ -92,7 +63,6 @@ class KindOfClass(ctypes.c_void_p):
 
     @classmethod
     def static_method(cls, name, restype=None, argtypes=None):
-        name = _normalize_name(name)
         if cls._library is None:
             raise BindingError("You have to bind the class to a library!")
         name = cls._get_name(name)
@@ -104,31 +74,37 @@ class KindOfClass(ctypes.c_void_p):
         return func
 
     @classmethod
-    def constructor(cls, suffix, argtypes=None):
+    def constructor(cls, suffix='', argtypes=None):
         """
             a constructor is a static method `new` that
             returns a pointer to *cls._struct*.
         """
-        return cls.static_method('new~' + suffix, cls, argtypes)
+        if suffix:
+            name = 'new_' + suffix
+        else:
+            name = 'new'
+        return cls.static_method(name, cls, argtypes)
 
     @classmethod
     def add_method(cls, name, *args, **kwargs):
-        name = _normalize_name(name)
         ctypes_meth = cls.method(name, *args, **kwargs)
         def method(self, *args, **kwargs):
             return ctypes_meth(self, *args, **kwargs)
-        setattr(cls, name, method) # what about '~'?
+        setattr(cls, name, method)
 
     @classmethod
     def add_static_method(cls, name, *args, **kwargs):
-        name = _normalize_name(name)
         ctypes_meth = cls.static_method(name, *args, **kwargs)
-        setattr(cls, name, staticmethod(ctypes_meth)) # what about '~'?
+        setattr(cls, name, staticmethod(ctypes_meth))
 
     @classmethod
     def add_constructor(cls, suffix='', argtypes=None):
         ctypes_meth = cls.constructor(suffix, argtypes)
-        setattr(cls, 'new', staticmethod(ctypes_meth)) # TODO: overloaded?
+        if suffix:
+            name = 'new_' + suffix
+        else:
+            name = 'new'
+        setattr(cls, name, staticmethod(ctypes_meth)) # TODO: overloaded?
 
 class Class(KindOfClass):
     pass

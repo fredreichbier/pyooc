@@ -8,8 +8,11 @@ class Yay(pyooc.Class):
 
 Yay.bind(lib)
 Yay.add_constructor()
-Yay.add_method('hello ~there')
+Yay.add_constructor('withMessage', [types.String])
+Yay.add_method('greet')
 
-yay = Yay.new()
-yay['hello~there']()
+with_ = Yay.new_withMessage("Huhu!")
+with_.greet()
 
+without = Yay.new()
+without.greet()

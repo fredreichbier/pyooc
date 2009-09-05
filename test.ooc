@@ -1,7 +1,17 @@
 import lang.String
 
 Yay: class {
-    hello: func ~there {
-        "Hello THERE!" println()
+    message: String
+
+    init: func ~withMessage (message: String) {
+        this message = message
+    }
+
+    init: func {
+        this message = "Hello World!"
+    }
+
+    greet: func {
+        message println()
     }
 }
