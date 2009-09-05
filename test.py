@@ -3,13 +3,13 @@ from pyooc import types
 
 lib = pyooc.Library('./libtest.so')
 
-class Yay(pyooc.KindOfClass):
+class Yay(pyooc.Class):
     pass
 
 Yay.bind(lib)
-Yay.add_static_method('new', Yay)
-Yay.add_method('hello')
+Yay.add_constructor()
+Yay.add_method('hello ~there')
 
 yay = Yay.new()
-yay.hello()
+yay['hello~there']()
 

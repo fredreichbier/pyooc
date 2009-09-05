@@ -1,7 +1,7 @@
 import lang.String
 
 Yay: class {
-    hello: func {
-        "Hello World!" println()
+    hello: func ~there {
+        "Hello THERE!" println()
     }
 }
