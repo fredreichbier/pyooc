@@ -64,32 +64,40 @@ class KindOfClass(ctypes.c_void_p):
         return '_'.join((basename, name))
 
     @classmethod
-    def method(cls, name):
+    def method(cls, name, restype=None, argtypes=None):
         if cls._library is None:
             raise BindingError("You have to bind the class to a library!")
         name = cls._get_name(name)
         func = cls._library[name]
         func.argtypes = [ctypes.POINTER(cls._struct)]
+        if restype is not None:
+            func.restype = restype
+        if argtypes is not None:
+            func.argtypes.extend(argtypes)
         return func
 
     @classmethod
-    def static_method(cls, name):
+    def static_method(cls, name, restype=None, argtypes=None):
         if cls._library is None:
             raise BindingError("You have to bind the class to a library!")
         name = cls._get_name(name)
         func = cls._library[name]
+        if restype is not None:
+            func.restype = restype
+        if argtypes is not None:
+            func.argtypes = argtypes
         return func
 
     @classmethod
-    def add_method(cls, name):
-        ctypes_meth = cls.method(name)
+    def add_method(cls, name, *args, **kwargs):
+        ctypes_meth = cls.method(name, *args, **kwargs)
         def method(self, *args, **kwargs):
             return ctypes_meth(self, *args, **kwargs)
         setattr(cls, name, method) # what about '~'?
 
     @classmethod
-    def add_static_method(cls, name):
-        ctypes_meth = cls.static_method(name)
+    def add_static_method(cls, name, *args, **kwargs):
+        ctypes_meth = cls.static_method(name, *args, **kwargs)
         setattr(cls, name, staticmethod(ctypes_meth)) # what about '~'?
 
 class Class(KindOfClass):

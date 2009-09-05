@@ -5,7 +5,3 @@ Yay: class {
         "Hello World!" println()
     }
 }
-
-doIt: func -> Yay {
-    return Yay new()
-}
