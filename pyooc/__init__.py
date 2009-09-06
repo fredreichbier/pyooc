@@ -12,14 +12,35 @@ class Library(ctypes.CDLL):
     pass
 
 class KindOfClass(object):
-    name = None
+    _name_ = None
     _library = None
-    fields = None
+    _fields_ = None
     _struct = None
+    _methods_ = None
+    _static_methods_ = None
+    _constructors_ = None
+
+    @classmethod
+    def _add_predefined(cls):
+        """
+            add all predefined members in *_methods_*,
+            *_static_methods_* and *_constructors_*.
+        """
+        if cls._methods_ is not None:
+            for name, restype, argtypes in cls._methods_:
+                cls.add_method(name, restype, argtypes)
+        if cls._static_methods_ is not None:
+            for name, restype, argtypes in cls._static_methods_:
+                cls.add_static_method(name, restype, argtypes)
+        if cls._constructors_ is not None:
+            for suffix, argtypes in cls._constructors_:
+                cls.add_constructor(suffix, argtypes)
 
     @classmethod
     def bind(cls, lib):
         cls._library = lib
+        # add all predefined members
+        cls._add_predefined()
 
     @property
     def contents(self):
@@ -29,10 +50,9 @@ class KindOfClass(object):
     def setup(cls):
         if cls._struct is None:
             cls._setup()
-
     @classmethod
     def _get_name(cls, name):
-        basename = cls.name
+        basename = cls._name_
         if basename is None:
             basename = cls.__name__
         return '_'.join((basename, name))
@@ -101,27 +121,27 @@ class KindOfClass(object):
 class Class(KindOfClass, ctypes.c_void_p):
     @classmethod
     def _setup(cls):
-        if cls.name is None:
-            cls.name = cls.__name__
+        if cls._name_ is None:
+            cls._name_ = cls.__name__
         struct = type(cls.__name__ + 'Struct', (ctypes.Structure,), {})
-        if cls.fields is None:
-            cls.fields = []
+        if cls._fields_ is None:
+            cls._fields_ = []
         # TODO: bitfields??
         fields = struct._fields_ = [
                 ('class_', ctypes.POINTER(None)) # TODO: well, include the _Object struct
-                ] + cls.fields
+                ] + cls._fields_
 #        struct._anonymous_ = ('__super__',)
         cls._struct = struct
 
 class Cover(KindOfClass):
     @classmethod
     def _setup(cls):
-        if cls.name is None:
-            cls.name = cls.__name__
+        if cls._name_ is None:
+            cls._name_ = cls.__name__
         struct = type(cls.__name__ + 'Struct', (ctypes.Structure,), {})
-        if cls.fields is None:
-            cls.fields = []
+        if cls._fields_ is None:
+            cls._fields_ = []
         # TODO: bitfields??
-        struct._fields_ = cls.fields
+        struct._fields_ = cls._fields_
         cls._struct = struct
 

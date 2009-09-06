@@ -4,19 +4,25 @@ from pyooc import types
 lib = pyooc.Library('./libtest.so')
 
 class String(pyooc.Cover, types.String):
-    pass
+    _methods_ = [
+            # name      restype argtypes
+            ('println', None,   None),
+            ]
 
 class Yay(pyooc.Class):
-    fields = [
+    _fields_ = [
             ('message', String),
+            ]
+    _methods_ = [
+            ('greet', None, None)
+            ]
+    _constructors_ = [
+            ('', None),
+            ('withMessage', [types.String]),
             ]
 
 Yay.bind(lib)
 String.bind(lib)
-
-Yay.add_constructor()
-Yay.add_constructor('withMessage', [types.String])
-Yay.add_method('greet')
 
 with_ = Yay.new_withMessage("Huhu!")
 with_.greet()
@@ -25,7 +31,5 @@ without = Yay.new()
 without.greet()
 
 print 'I got the message:', with_.contents.message.value
-
-String.add_method('println')
 
 with_.contents.message.println()
