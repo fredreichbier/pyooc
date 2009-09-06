@@ -59,7 +59,7 @@ class Library(ctypes.CDLL):
         ctypes.CDLL.__init__(self, *args, **kwargs)
         self.types = types.Types(self)
 
-    def add_operator(self, op, restype, argtypes, member=None):
+    def add_operator(self, op, restype, argtypes, add_operator=True, member=None):
         # get the ooc function name
         ooc_op, py_special_name = OPERATORS[op]
         ooc_name = '__OP_%s_%s' % (ooc_op, '_'.join(a._name_ for a in argtypes))
@@ -78,8 +78,9 @@ class Library(ctypes.CDLL):
         if member is not None:
             setattr(argtypes[0], member, method)
         # if possible, add a pythonic operator
-        if py_special_name is not None:
+        if (add_operator and py_special_name is not None):
             setattr(argtypes[0], py_special_name, method)
+        return method
 
     def generic_function(self, name, generic_types, restype, argtypes):
         # is the return value a generic type? if yes, the
