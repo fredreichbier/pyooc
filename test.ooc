@@ -16,6 +16,6 @@ Yay: class {
     }
 }
 
-gimmeAString: func -> String {
-    "I like turtles."
+operator +(one, two: Yay) -> Yay {
+    Yay new("Hey, that's the result of two added Yays!")
 }

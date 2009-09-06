@@ -7,11 +7,30 @@ from . import types
 class BindingError(Exception):
     pass
 
+OPERATORS = {
+        '+': ('ADD', '__add__'),
+        # TODO: add more operators
+        }
+
 # Hey, we've got to load libgc!
 GC = ctypes.CDLL(ctypes.util.find_library('gc'), ctypes.RTLD_GLOBAL)
 
 class Library(ctypes.CDLL):
-    pass
+    def add_operator(self, op, restype, argtypes, member=None):
+        # get the ooc function name
+        ooc_op, py_special_name = OPERATORS[op]
+        ooc_name = '__OP_%s_%s' % (ooc_op, '_'.join(a._name_ for a in argtypes))
+        # get the operator function
+        func = self[ooc_name]
+        func.restype = restype
+        # add the function as member if wished
+        def method(self, *args, **kwargs):
+            return func(self, *args, **kwargs)
+        if member is not None:
+            setattr(argtypes[0], member, method)
+        # if possible, add a pythonic operator
+        if py_special_name is not None:
+            setattr(argtypes[0], py_special_name, method)
 
 class KindOfClass(object):
     _name_ = None
