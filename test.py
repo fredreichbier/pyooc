@@ -38,3 +38,5 @@ print 'I got the message:', with_.contents.message.value
 with_.contents.message.println()
 gimmeAString().println()
 
+print "Hey, it's named", with_.contents.__super__.class_.contents.name
+

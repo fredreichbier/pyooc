@@ -2,6 +2,8 @@ import ctypes
 import ctypes.util
 from functools import partial
 
+from . import types
+
 class BindingError(Exception):
     pass
 
@@ -50,6 +52,7 @@ class KindOfClass(object):
     def setup(cls):
         if cls._struct is None:
             cls._setup()
+
     @classmethod
     def _get_name(cls, name):
         basename = cls._name_
@@ -128,7 +131,7 @@ class Class(KindOfClass, ctypes.c_void_p):
             cls._fields_ = []
         # TODO: bitfields??
         fields = struct._fields_ = [
-                ('class_', ctypes.POINTER(None)) # TODO: well, include the _Object struct
+                ('__super__', types.Object)
                 ] + cls._fields_
 #        struct._anonymous_ = ('__super__',)
         cls._struct = struct

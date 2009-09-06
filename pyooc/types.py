@@ -34,3 +34,22 @@ Octet = ctypes.c_uint8
 Void = None # c_void
 Bool = ctypes.c_bool
 SizeT = ctypes.c_size_t
+
+class Class(ctypes.Structure):
+    pass
+
+Class._fields_ = [
+        ('class_', ctypes.POINTER(Class)),
+        ('size', SizeT),
+        ('name', String),
+        ('super', ctypes.POINTER(Class)),
+        ]
+
+class Object(ctypes.Structure):
+    # Well, for the `Yay` class, there is `YayClass`, but
+    # I think I'll just leave out that level of abstraction.
+    # So, let's say there's only a pointer to a class.
+    _fields_ = [
+            ('class_', ctypes.POINTER(Class)),
+        ]
+
