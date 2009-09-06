@@ -2,10 +2,28 @@ import ctypes
 import ctypes.util
 from functools import partial
 
-from . import types
-
 class BindingError(Exception):
     pass
+
+CTYPES_BASE_TYPE = type(ctypes.c_char_p)
+
+def convert_to_ctypes(value):
+    if value is None:
+        return ctypes.c_void_p()
+    elif isinstance(value, (Class, Cover)):
+        return value
+    elif isinstance(value, int):
+        return ctypes.c_int(value)
+    elif isinstance(value, long):
+        return ctypes.c_long(value) # TODO: unsigned?
+    elif isinstance(value, str):
+        return ctypes.c_char_p(value)
+    elif isinstance(value, unicode):
+        return ctypes.c_wchar_p(value)
+    elif hasattr(value, '_as_parameter_'):
+        return value._as_parameter_
+    else:
+        raise BindingError("No idea how to convert %r" % value)
 
 OPERATORS = {
         '+': ('ADD', '__add__'),
@@ -37,6 +55,10 @@ OPERATORS = {
 GC = ctypes.CDLL(ctypes.util.find_library('gc'), ctypes.RTLD_GLOBAL)
 
 class Library(ctypes.CDLL):
+    def __init__(self, *args, **kwargs):
+        ctypes.CDLL.__init__(self, *args, **kwargs)
+        self.types = types.Types(self)
+
     def add_operator(self, op, restype, argtypes, member=None):
         # get the ooc function name
         ooc_op, py_special_name = OPERATORS[op]
@@ -59,6 +81,77 @@ class Library(ctypes.CDLL):
         if py_special_name is not None:
             setattr(argtypes[0], py_special_name, method)
 
+    def generic_function(self, name, generic_types, restype, argtypes):
+        # is the return value a generic type? if yes, the
+        # ooc-generated function looks a bit different :)
+        return_generic = restype in generic_types
+        # get the method
+        func = self[name]
+        # now construct the argument list.
+        pass_argtypes = []
+        # if the return value is a generic, the first argument will
+        # be a pointer to the return value
+        if return_generic:
+            pass_argtypes.append(ctypes.c_void_p)
+        # ooc's generic functions take the classes of the template
+        # types as first arguments.
+        for _ in generic_types:
+            pass_argtypes.append(ctypes.POINTER(self.types.Class))
+        # then all arguments follow
+        for argtype in argtypes:
+            # a templated argtype will be a pointer to a value.
+            if argtype in generic_types:
+                pass_argtypes.append(ctypes.POINTER(self.types.Octet))
+            else:
+                pass_argtypes.append(argtype)
+        # yep, it's ready.
+        func.argtypes = pass_argtypes
+        # functions with generic return values don't have a return value in C
+        if not return_generic:
+            func.restype = restype
+        # Now, we'll construct a function. It's not very nice,
+        # I'd rather like to generate code, but that would
+        # be evil, I think. TODO: nicer nicer nicer!
+        def function(*args, **kwargs):
+            # if the return value is generic, the user has to
+            # pass the type explicitly.
+            pass_args = []
+            if return_generic:
+                restype = kwargs.pop('restype')
+                assert not kwargs
+                assert restype # TODO: nice error
+                result = restype()
+                pass_args.append(ctypes.cast(result))
+            generic_types_types = {}
+            regular_args = []
+            for argtype, arg in zip(argtypes, args):
+                # is it generic?
+                arg = convert_to_ctypes(arg)
+                if argtype in generic_types:
+                    # yes. pass a pointer.
+                    regular_args.append(
+                            ctypes.cast(
+                                ctypes.pointer(arg),
+                                ctypes.POINTER(
+                                    self.types.Octet
+                                    )
+                                ))
+                    if argtype not in generic_types_types:
+                        generic_types_types[argtype] = arg.class_()
+                else:
+                    # no. just pass the argument.
+                    regular_args.append(arg)
+            for gtype in generic_types:
+                pass_args.append(generic_types_types[gtype])
+            pass_args.extend(regular_args)
+            # and now ... call it!
+            if return_generic:
+                func(*pass_args)
+                return result
+            else:
+                return func(*pass_args)
+        return function
+
 class KindOfClass(object):
     _name_ = None
     _library = None
@@ -67,6 +160,14 @@ class KindOfClass(object):
     _methods_ = None
     _static_methods_ = None
     _constructors_ = None
+
+    @classmethod
+    def class_(cls):
+        """
+            oh yay, return my class
+        """
+        cls.class_ = cls.static_method('class', cls._library.types.Class)
+        return cls.class_()
 
     @classmethod
     def _add_predefined(cls):
@@ -177,7 +278,7 @@ class Class(KindOfClass, ctypes.c_void_p):
             cls._fields_ = []
         # TODO: bitfields??
         fields = struct._fields_ = [
-                ('__super__', types.Object)
+                ('__super__', cls._library.types.Object)
                 ] + cls._fields_
 #        struct._anonymous_ = ('__super__',)
         cls._struct = struct
@@ -194,3 +295,5 @@ class Cover(KindOfClass):
         struct._fields_ = cls._fields_
         cls._struct = struct
 
+# We import it here because types.py needs Cover.
+from . import types

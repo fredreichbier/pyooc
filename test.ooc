@@ -13,6 +13,7 @@ Yay: class {
 
     greet: func {
         message println()
+        krababbel("yay");
     }
 }
 
@@ -30,4 +31,8 @@ operator == (one, two: Yay) -> Bool {
 
 operator != (one, two: Yay) -> Bool {
     one message != two message
+}
+
+krababbel: func <T> (hey: T) {
+    (hey as String) println()
 }
