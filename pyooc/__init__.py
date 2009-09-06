@@ -9,6 +9,27 @@ class BindingError(Exception):
 
 OPERATORS = {
         '+': ('ADD', '__add__'),
+        '+=': ('ADD_ASS', '__iadd__'),
+        '-': ('SUB', '__sub__'),
+        '-=': ('SUB_ASS', '__isub__'),
+        '*': ('MUL', '__mul__'),
+        '*=': ('MUL_ASS', '__imul__'),
+        '/': ('DIV', '__div__'),
+        '/=': ('DIV_ASS', '__idiv__'),
+        '=': ('ASS', None),
+        '%': ('MOD', '__mod__'),
+        'or': ('L_OR', None),
+        'and': ('L_AND', None),
+        '|': ('B_OR', '__or__'),
+        '&': ('B_AND', '__and__'),
+        '[]': ('IDX', '__getitem__'),
+        '[]=': ('IDX_ASS', '__setitem__'),
+        '>': ('GT', '__gt__'),
+        '>=': ('GTE', '__ge__'),
+        '<': ('LT', '__lt__'),
+        '<=': ('LTE', '__le__'),
+        '==': ('EQ', '__eq__'),
+        '!=': ('NE', '__ne__'),
         # TODO: add more operators
         }
 
@@ -24,8 +45,14 @@ class Library(ctypes.CDLL):
         func = self[ooc_name]
         func.restype = restype
         # add the function as member if wished
-        def method(self, *args, **kwargs):
-            return func(self, *args, **kwargs)
+        # return `self` if the function has no return type given
+        if restype is None:
+            def method(self, *args, **kwargs):
+                func(self, *args, **kwargs)
+                return self
+        else:
+            def method(self, *args, **kwargs):
+                return func(self, *args, **kwargs)
         if member is not None:
             setattr(argtypes[0], member, method)
         # if possible, add a pythonic operator

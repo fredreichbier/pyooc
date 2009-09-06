@@ -16,6 +16,18 @@ Yay: class {
     }
 }
 
-operator +(one, two: Yay) -> Yay {
+operator + (one, two: Yay) -> Yay {
     Yay new("Hey, that's the result of two added Yays!")
+}
+
+operator += (one, two: Yay) {
+    one message = "HA-HA!"
+}
+
+operator == (one, two: Yay) -> Bool {
+    one message == two message
+}
+
+operator != (one, two: Yay) -> Bool {
+    one message != two message
 }

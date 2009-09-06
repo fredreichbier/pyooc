@@ -35,5 +35,13 @@ print 'I got the message:', with_.contents.message.value
 with_.contents.message.println()
 
 lib.add_operator('+', Yay, [Yay, Yay])
+lib.add_operator('+=', None, [Yay, Yay])
+lib.add_operator('==', types.Bool, [Yay, Yay])
 
 print (with_ + without).contents.message.value
+with_ += without
+with_.contents.message.println()
+
+print (with_ == without)
+print (without == without)
+print (with_ != without)
