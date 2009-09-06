@@ -24,6 +24,9 @@ class Yay(pyooc.Class):
 Yay.bind(lib)
 String.bind(lib)
 
+gimmeAString = lib.gimmeAString
+gimmeAString.restype = String
+
 with_ = Yay.new_withMessage("Huhu!")
 with_.greet()
 
@@ -33,3 +36,5 @@ without.greet()
 print 'I got the message:', with_.contents.message.value
 
 with_.contents.message.println()
+gimmeAString().println()
+

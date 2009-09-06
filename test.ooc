@@ -15,3 +15,7 @@ Yay: class {
         message println()
     }
 }
+
+gimmeAString: func -> String {
+    "I like turtles."
+}
