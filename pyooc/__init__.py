@@ -11,7 +11,7 @@ GC = ctypes.CDLL(ctypes.util.find_library('gc'), ctypes.RTLD_GLOBAL)
 class Library(ctypes.CDLL):
     pass
 
-class KindOfClass(ctypes.c_void_p):
+class KindOfClass(object):
     name = None
     _library = None
     fields = None
@@ -20,20 +20,6 @@ class KindOfClass(ctypes.c_void_p):
     @classmethod
     def bind(cls, lib):
         cls._library = lib
-
-    @classmethod
-    def _setup(cls):
-        if cls.name is None:
-            cls.name = cls.__name__
-        struct = type(cls.__name__ + 'Struct', (ctypes.Structure,), {})
-        if cls.fields is None:
-            cls.fields = []
-        # TODO: bitfields??
-        fields = struct._fields_ = [
-                ('class_', ctypes.POINTER(None)) # TODO: well, include the _Object struct
-                ] + cls.fields
-#        struct._anonymous_ = ('__super__',)
-        cls._struct = struct
 
     @property
     def contents(self):
@@ -112,6 +98,30 @@ class KindOfClass(ctypes.c_void_p):
             name = 'new'
         setattr(cls, name, staticmethod(ctypes_meth)) # TODO: overloaded?
 
-class Class(KindOfClass):
-    pass
+class Class(KindOfClass, ctypes.c_void_p):
+    @classmethod
+    def _setup(cls):
+        if cls.name is None:
+            cls.name = cls.__name__
+        struct = type(cls.__name__ + 'Struct', (ctypes.Structure,), {})
+        if cls.fields is None:
+            cls.fields = []
+        # TODO: bitfields??
+        fields = struct._fields_ = [
+                ('class_', ctypes.POINTER(None)) # TODO: well, include the _Object struct
+                ] + cls.fields
+#        struct._anonymous_ = ('__super__',)
+        cls._struct = struct
+
+class Cover(KindOfClass):
+    @classmethod
+    def _setup(cls):
+        if cls.name is None:
+            cls.name = cls.__name__
+        struct = type(cls.__name__ + 'Struct', (ctypes.Structure,), {})
+        if cls.fields is None:
+            cls.fields = []
+        # TODO: bitfields??
+        struct._fields_ = cls.fields
+        cls._struct = struct
 
