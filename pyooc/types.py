@@ -93,7 +93,9 @@ class Types(object):
         class ClassStruct(ctypes.Structure):
             pass
 
-        self.Class = type("Class", (Cover, ctypes.POINTER(ClassStruct)), {})
+        self.Class = type("Class", (Cover, ctypes.c_void_p), {})
+        # TODO: we can't derive from ctypes.POINTER(ctypes.ClassStruct)
+        # - that is very sad :(
         ClassStruct._fields_ = [
                 ('class_', self.Class),
                 ('size', self.SizeT),

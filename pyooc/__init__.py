@@ -96,7 +96,7 @@ class Library(ctypes.CDLL):
         # ooc's generic functions take the classes of the template
         # types as first arguments.
         for _ in generic_types:
-            pass_argtypes.append(ctypes.POINTER(self.types.Class))
+            pass_argtypes.append(self.types.Class)
         # then all arguments follow
         for argtype in argtypes:
             # a templated argtype will be a pointer to a value.
@@ -121,7 +121,7 @@ class Library(ctypes.CDLL):
                 assert not kwargs
                 assert restype # TODO: nice error
                 result = restype()
-                pass_args.append(ctypes.cast(result))
+                pass_args.append(ctypes.pointer(result))
             generic_types_types = {}
             regular_args = []
             for argtype, arg in zip(argtypes, args):
@@ -166,8 +166,8 @@ class KindOfClass(object):
         """
             oh yay, return my class
         """
-        cls.class_ = cls.static_method('class', cls._library.types.Class)
-        return cls.class_()
+        r = cls.static_method('class', cls._library.types.Class)()
+        return r
 
     @classmethod
     def _add_predefined(cls):
@@ -190,10 +190,6 @@ class KindOfClass(object):
         cls._library = lib
         # add all predefined members
         cls._add_predefined()
-
-    @property
-    def contents(self):
-        return ctypes.cast(self, ctypes.POINTER(type(self)._struct)).contents
 
     @classmethod
     def setup(cls):
@@ -269,6 +265,10 @@ class KindOfClass(object):
         setattr(cls, name, staticmethod(ctypes_meth)) # TODO: overloaded?
 
 class Class(KindOfClass, ctypes.c_void_p):
+    @property
+    def contents(self):
+        return ctypes.cast(self, ctypes.POINTER(type(self)._struct)).contents
+
     @classmethod
     def _setup(cls):
         if cls._name_ is None:
