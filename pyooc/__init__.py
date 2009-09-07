@@ -82,7 +82,7 @@ class Library(ctypes.CDLL):
             setattr(argtypes[0], py_special_name, method)
         return method
 
-    def generic_function(self, name, generic_types, restype, argtypes):
+    def generic_function(self, name, generic_types, restype, argtypes, method=False):
         # is the return value a generic type? if yes, the
         # ooc-generated function looks a bit different :)
         return_generic = restype in generic_types
@@ -90,6 +90,9 @@ class Library(ctypes.CDLL):
         func = self[name]
         # now construct the argument list.
         pass_argtypes = []
+        # if it's a method, the this pointer is the very first argument.
+        if method:
+            pass_argtypes.append(ctypes.c_void_p)
         # if the return value is a generic, the first argument will
         # be a pointer to the return value
         if return_generic:
@@ -114,9 +117,14 @@ class Library(ctypes.CDLL):
         # I'd rather like to generate code, but that would
         # be evil, I think. TODO: nicer nicer nicer!
         def function(*args, **kwargs):
+            pass_args = []
+            # if it's a method, the first argument is
+            # the this pointer.
+            if method:
+                pass_args.append(args[0])
+                args = args[1:]
             # if the return value is generic, the user has to
             # pass the type explicitly.
-            pass_args = []
             if return_generic:
                 restype = kwargs.pop('restype')
                 assert not kwargs
@@ -220,6 +228,17 @@ class KindOfClass(object):
         return func
 
     @classmethod
+    def generic_method(cls, name, generic_types, restype=None, argtypes=None):
+        cls.setup()
+        if cls._library is None:
+            raise BindingError("You have to bind the class to a library!")
+        name = cls._get_name(name)
+        # We'll just say the `this` pointer is a void pointer for convenience.
+        # That's now done by `generic_function`
+        #argtypes = [ctypes.POINTER(None)] + argtypes
+        return cls._library.generic_function(name, generic_types, restype, argtypes, True)
+
+    @classmethod
     def static_method(cls, name, restype=None, argtypes=None):
         cls.setup()
         if cls._library is None:
@@ -247,6 +266,13 @@ class KindOfClass(object):
     @classmethod
     def add_method(cls, name, *args, **kwargs):
         ctypes_meth = cls.method(name, *args, **kwargs)
+        def method(self, *args, **kwargs):
+            return ctypes_meth(self, *args, **kwargs)
+        setattr(cls, name, method)
+
+    @classmethod
+    def add_generic_method(cls, name, *args, **kwargs):
+        ctypes_meth = cls.generic_method(name, *args, **kwargs)
         def method(self, *args, **kwargs):
             return ctypes_meth(self, *args, **kwargs)
         setattr(cls, name, method)
