@@ -90,19 +90,20 @@ class Types(object):
         self.SizeT = type("SizeT", (Cover, ctypes.c_size_t), {})
         self.SizeT.bind(lib)
 
-        class ClassStruct(ctypes.Structure):
+        class Class(Cover, ctypes.Structure):
             pass
 
-        self.Class = type("Class", (Cover, ClassStruct), {})
+        self.Class = Class 
         # TODO: we can't derive from ctypes.POINTER(ctypes.ClassStruct)
         # - that is very sad :(
         # Wait: `Class` is a struct. Not a pointer to a struct. What do I
         # mean? OMGWTFBBQ?
-        ClassStruct._fields_ = [
-                ('class_', self.Class),
+        Class._fields_ = [
+                ('class_', ctypes.POINTER(self.Class)),
+                ('instanceSize', self.SizeT),
                 ('size', self.SizeT),
                 ('name', self.String),
-                ('super', self.Class),
+                ('super', ctypes.POINTER(self.Class)),
                 ]
 
         class ObjectStruct(ctypes.Structure):
@@ -110,7 +111,7 @@ class Types(object):
             # I think I'll just leave out that level of abstraction.
             # So, let's say there's only a pointer to a class.
             _fields_ = [
-                    ('class_', self.Class),
+                    ('class_', ctypes.POINTER(self.Class)),
                 ]
 
         self.Object = type("Object", (Cover, ctypes.POINTER(ObjectStruct)), {})

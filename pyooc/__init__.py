@@ -82,7 +82,9 @@ class Library(ctypes.CDLL):
             setattr(argtypes[0], py_special_name, method)
         return method
 
-    def generic_function(self, name, generic_types, restype, argtypes, method=False):
+    def generic_function(self, name, generic_types, restype, argtypes=(), method=False):
+        if argtypes is None:
+            argtypes = []
         # is the return value a generic type? if yes, the
         # ooc-generated function looks a bit different :)
         return_generic = restype in generic_types
@@ -324,19 +326,19 @@ class GenericClass(Class):
         struct = type(cls.__name__ + 'Struct', (ctypes.Structure,), {})
         if cls._fields_ is None:
             cls._fields_ = []
-        fields = cls._fields_[:]
+        fields = []
         # add the Class pointers. They are done in the reverse order.
         for typename in cls._generic_types_[::-1]:
             fields.append(
                     (typename, ctypes.POINTER(cls._library.types.Class))
                     )
-        for name, type in cls._fields_[:]:
-            if type in cls._generic_types_:
-                cls.fields.append(
+        for name, argtype in cls._fields_[:]:
+            if argtype in cls._generic_types_:
+                fields.append(
                     (name, ctypes.POINTER(cls._library.types.Octet))
                     )
             else:
-                fields.append((name, type))
+                fields.append((name, argtype))
         # TODO: bitfields??
         fields = struct._fields_ = [
                 ('__super__', cls._library.types.Object)
@@ -344,7 +346,24 @@ class GenericClass(Class):
 #        struct._anonymous_ = ('__super__',)
         cls._struct = struct
 
+    @classmethod
+    def constructor(cls, suffix='', argtypes=None):
+        """
+            Here, we have to pass the generic types in the arguments.
+        """
+        if suffix:
+            name = 'new_' + suffix
+        else:
+            name = 'new'
+        type_argtypes = [ctypes.POINTER(cls._library.types.Class) for _ in cls._generic_types_]
+        return cls.static_method(name, cls, type_argtypes + argtypes)
 
+    def get_generic_member(self, name, type):
+        """
+            Return the value of the generic member *name*, casted to *type*.
+        """
+        return ctypes.cast(getattr(self.contents, name), ctypes.POINTER(type)).contents
+        
 class Cover(KindOfClass):
     @classmethod
     def _setup(cls):

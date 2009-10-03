@@ -1,11 +1,12 @@
-Yay: class <T, U> {
+Test: class <T> {
     message: T
 
     init: func (msg: String) {
+        msg println()
         message = msg
     }
 
     printy: func {
-        this message as String println()
+        T name println()
     }
 }
