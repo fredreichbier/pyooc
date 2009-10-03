@@ -93,9 +93,11 @@ class Types(object):
         class ClassStruct(ctypes.Structure):
             pass
 
-        self.Class = type("Class", (Cover, ctypes.c_void_p), {})
+        self.Class = type("Class", (Cover, ClassStruct), {})
         # TODO: we can't derive from ctypes.POINTER(ctypes.ClassStruct)
         # - that is very sad :(
+        # Wait: `Class` is a struct. Not a pointer to a struct. What do I
+        # mean? OMGWTFBBQ?
         ClassStruct._fields_ = [
                 ('class_', self.Class),
                 ('size', self.SizeT),
