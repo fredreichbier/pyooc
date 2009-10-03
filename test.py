@@ -16,6 +16,6 @@ class Test(pyooc.GenericClass):
 Test.bind(lib)
 Test.add_method('printy')
 
-test = Test.new(lib.types.Int.class_(), 'heeeeeeeya')
+test = Test.new(lib.types.String.class_(), 'heeeeeeeya')
 test.printy()
-print test.get_generic_member('message', lib.types.String).value
+print test.get_generic_member('message').value

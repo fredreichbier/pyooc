@@ -58,6 +58,8 @@ class Library(ctypes.CDLL):
     def __init__(self, *args, **kwargs):
         ctypes.CDLL.__init__(self, *args, **kwargs)
         self.types = types.Types(self)
+        #: We're storing the class pointer -> pyooc class connection here.
+        self._classes = {}
 
     def add_operator(self, op, restype, argtypes, add_operator=True, member=None):
         # get the ooc function name
@@ -81,6 +83,14 @@ class Library(ctypes.CDLL):
         if (add_operator and py_special_name is not None):
             setattr(argtypes[0], py_special_name, method)
         return method
+
+    def _add_class_type(self, ooc, py):
+        address = ctypes.addressof(ooc.contents)
+        self._classes[address] = py
+
+    def _get_class_type(self, ooc):
+        address = ctypes.addressof(ooc.contents)
+        return self._classes[address]
 
     def generic_function(self, name, generic_types, restype, argtypes=(), method=False):
         if argtypes is None:
@@ -313,6 +323,8 @@ class Class(KindOfClass, ctypes.c_void_p):
                 ] + cls._fields_
 #        struct._anonymous_ = ('__super__',)
         cls._struct = struct
+        # connect the ooc class to the python class
+        cls._library._add_class_type(cls.class_(), cls)
 
 class GenericClass(Class):
     _generic_types_ = ()
@@ -327,6 +339,7 @@ class GenericClass(Class):
         if cls._fields_ is None:
             cls._fields_ = []
         fields = []
+        cls._generic_members_ = []
         # add the Class pointers. They are done in the reverse order.
         for typename in cls._generic_types_[::-1]:
             fields.append(
@@ -337,6 +350,7 @@ class GenericClass(Class):
                 fields.append(
                     (name, ctypes.POINTER(cls._library.types.Octet))
                     )
+                cls._generic_members_.append((name, argtype))
             else:
                 fields.append((name, argtype))
         # TODO: bitfields??
@@ -345,6 +359,8 @@ class GenericClass(Class):
                 ] + fields
 #        struct._anonymous_ = ('__super__',)
         cls._struct = struct
+        # connect the ooc class to the python class
+        cls._library._add_class_type(cls.class_(), cls)
 
     @classmethod
     def constructor(cls, suffix='', argtypes=None):
@@ -358,11 +374,15 @@ class GenericClass(Class):
         type_argtypes = [ctypes.POINTER(cls._library.types.Class) for _ in cls._generic_types_]
         return cls.static_method(name, cls, type_argtypes + argtypes)
 
-    def get_generic_member(self, name, type):
+    def get_generic_member(self, name):
         """
-            Return the value of the generic member *name*, casted to *type*.
+            Return the value of the generic member *name*, correctly typed.
         """
-        return ctypes.cast(getattr(self.contents, name), ctypes.POINTER(type)).contents
+        typename = dict(type(self)._generic_members_)[name]
+        typevalue = getattr(self.contents, typename)
+        value = getattr(self.contents, name)
+        typ = type(self)._library._get_class_type(typevalue)
+        return ctypes.cast(value, ctypes.POINTER(typ)).contents
         
 class Cover(KindOfClass):
     @classmethod
@@ -375,6 +395,8 @@ class Cover(KindOfClass):
         # TODO: bitfields??
         struct._fields_ = cls._fields_
         cls._struct = struct
+        # connect the ooc class to the python class
+        cls._library._add_class_type(cls.class_(), cls)
 
 # We import it here because types.py needs Cover.
 from . import types
