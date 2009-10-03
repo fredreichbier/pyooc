@@ -100,7 +100,7 @@ class Library(ctypes.CDLL):
         # ooc's generic functions take the classes of the template
         # types as first arguments.
         for _ in generic_types:
-            pass_argtypes.append(self.types.Class)
+            pass_argtypes.append(ctypes.POINTER(self.types.Class))
         # then all arguments follow
         for argtype in argtypes:
             # a templated argtype will be a pointer to a value.
@@ -175,7 +175,9 @@ class KindOfClass(object):
         """
             oh yay, return my class
         """
-        r = cls.static_method('class', cls._library.types.Class)()
+        r = cls.static_method('class',
+                ctypes.POINTER(cls._library.types.Class)
+                )()
         return r
 
     @classmethod
@@ -309,6 +311,39 @@ class Class(KindOfClass, ctypes.c_void_p):
                 ] + cls._fields_
 #        struct._anonymous_ = ('__super__',)
         cls._struct = struct
+
+class GenericClass(Class):
+    _generic_types_ = ()
+
+    @classmethod
+    def _setup(cls):
+        if cls._name_ is None:
+            cls._name_ = cls.__name__
+        if not cls._generic_types_:
+            raise BindingError("%s is a generic class, but has no generic types set" % cls.__name__)
+        struct = type(cls.__name__ + 'Struct', (ctypes.Structure,), {})
+        if cls._fields_ is None:
+            cls._fields_ = []
+        fields = cls._fields_[:]
+        # add the Class pointers. They are done in the reverse order.
+        for typename in cls._generic_types_[::-1]:
+            fields.append(
+                    (typename, ctypes.POINTER(cls._library.types.Class))
+                    )
+        for name, type in cls._fields_[:]:
+            if type in cls._generic_types_:
+                cls.fields.append(
+                    (name, ctypes.POINTER(cls._library.types.Octet))
+                    )
+            else:
+                fields.append((name, type))
+        # TODO: bitfields??
+        fields = struct._fields_ = [
+                ('__super__', cls._library.types.Object)
+                ] + fields
+#        struct._anonymous_ = ('__super__',)
+        cls._struct = struct
+
 
 class Cover(KindOfClass):
     @classmethod

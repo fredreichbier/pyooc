@@ -1,19 +1,11 @@
-Yay: class {
-    message: String
+Yay: class <T, U> {
+    message: T
 
-    init: func ~withMessage (message: String) {
-        this message = message
+    init: func (msg: String) {
+        message = msg
     }
 
-    init: func {
-        this message = "Hello World!"
-    }
-
-    greet: func {
-        message println()
-    }
-
-    replace: func <T> (newMessage: T) {
-        message = newMessage as String
+    printy: func {
+        this message as String println()
     }
 }
