@@ -1,5 +1,3 @@
-import lang.String
-
 Yay: class {
     message: String
 
