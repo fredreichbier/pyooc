@@ -2,21 +2,8 @@ import pyooc
 
 lib = pyooc.Library('./libtest.so')
 
-class Yay(pyooc.Class):
-    _constructors_ = [
-            ('withMessage', [lib.types.String]),
-            ('', None),
-            ]
-    _fields_ = [
-            ('message', lib.types.String),
-            ]
+class Test(pyooc.GenericClass):
+    _generic_types_ = ['T']
 
-Yay.bind(lib)
+Test.bind(lib)
 
-Yay.add_generic_method('replace', ('T',), None, ['T'])
-
-yay = Yay.new_withMessage('Hello there!')
-print yay.contents.message.value
-
-yay.replace(lib.types.String('Ciao there!'))
-print yay.contents.message.value

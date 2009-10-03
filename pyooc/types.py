@@ -104,7 +104,6 @@ class Types(object):
                 ('name', self.String),
                 ('super', self.Class),
                 ]
-        self.Class.bind(lib)
 
         class ObjectStruct(ctypes.Structure):
             # Well, for the `Yay` class, there is `YayClass`, but
