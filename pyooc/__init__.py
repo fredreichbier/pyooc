@@ -1,5 +1,6 @@
 import ctypes
 import ctypes.util
+import re
 from functools import partial
 
 class BindingError(Exception):
@@ -58,8 +59,25 @@ class Library(ctypes.CDLL):
     def __init__(self, *args, **kwargs):
         ctypes.CDLL.__init__(self, *args, **kwargs)
         self.types = types.Types(self)
+
+    def get_module(self, path):
+        return Module(self, path)
+
+class Module(object):
+    def __init__(self, library, path):
+        self.library = library
+        self.path = path
+        self.member_prefix = re.sub(r'[^a-zA-Z0-9_]', '_', path) + '__'
+        if re.match(r'^[^a-zA-Z0-9_]', self.member_prefix):
+            self.member_prefix = '_' + self.member_prefix
         #: We're storing the class pointer -> pyooc class connection here.
         self._classes = {}
+
+    def __getattr__(self, key):
+        return self[key]
+
+    def __getitem__(self, key):
+        return self.library[self.member_prefix + key]
 
     def add_operator(self, op, restype, argtypes, add_operator=True, member=None):
         # get the ooc function name
@@ -175,7 +193,7 @@ class Library(ctypes.CDLL):
 
 class KindOfClass(object):
     _name_ = None
-    _library = None
+    _module = None
     _fields_ = None
     _struct = None
     _methods_ = None
@@ -188,7 +206,7 @@ class KindOfClass(object):
             oh yay, return my class
         """
         r = cls.static_method('class',
-                ctypes.POINTER(cls._library.types.Class)
+                ctypes.POINTER(cls._module.library.types.Class)
                 )()
         return r
 
@@ -209,8 +227,8 @@ class KindOfClass(object):
                 cls.add_constructor(suffix, argtypes)
 
     @classmethod
-    def bind(cls, lib):
-        cls._library = lib
+    def bind(cls, module):
+        cls._module = module
         # add all predefined members
         cls._add_predefined()
 
@@ -229,10 +247,10 @@ class KindOfClass(object):
     @classmethod
     def method(cls, name, restype=None, argtypes=None):
         cls.setup()
-        if cls._library is None:
+        if cls._module is None:
             raise BindingError("You have to bind the class to a library!")
         name = cls._get_name(name)
-        func = cls._library[name]
+        func = cls._module[name]
         # We'll just say the `this` pointer is a void pointer for convenience.
         func.argtypes = [ctypes.POINTER(None)]
         if restype is not None:
@@ -244,21 +262,21 @@ class KindOfClass(object):
     @classmethod
     def generic_method(cls, name, generic_types, restype=None, argtypes=None):
         cls.setup()
-        if cls._library is None:
+        if cls._module is None:
             raise BindingError("You have to bind the class to a library!")
         name = cls._get_name(name)
         # We'll just say the `this` pointer is a void pointer for convenience.
         # That's now done by `generic_function`
         #argtypes = [ctypes.POINTER(None)] + argtypes
-        return cls._library.generic_function(name, generic_types, restype, argtypes, True)
+        return cls._module.generic_function(name, generic_types, restype, argtypes, True)
 
     @classmethod
     def static_method(cls, name, restype=None, argtypes=None):
         cls.setup()
-        if cls._library is None:
+        if cls._module is None:
             raise BindingError("You have to bind the class to a library!")
         name = cls._get_name(name)
-        func = cls._library[name]
+        func = cls._module[name]
         if restype is not None:
             func.restype = restype
         if argtypes is not None:
@@ -319,12 +337,12 @@ class Class(KindOfClass, ctypes.c_void_p):
             cls._fields_ = []
         # TODO: bitfields??
         fields = struct._fields_ = [
-                ('__super__', cls._library.types.Object)
+                ('__super__', cls._module.library.types.Object)
                 ] + cls._fields_
 #        struct._anonymous_ = ('__super__',)
         cls._struct = struct
         # connect the ooc class to the python class
-        cls._library._add_class_type(cls.class_(), cls)
+        cls._module._add_class_type(cls.class_(), cls)
 
 class GenericClass(Class):
     _generic_types_ = ()
@@ -343,24 +361,24 @@ class GenericClass(Class):
         # add the Class pointers. They are done in the reverse order.
         for typename in cls._generic_types_[::-1]:
             fields.append(
-                    (typename, ctypes.POINTER(cls._library.types.Class))
+                    (typename, ctypes.POINTER(cls._module.library.types.Class))
                     )
         for name, argtype in cls._fields_[:]:
             if argtype in cls._generic_types_:
                 fields.append(
-                    (name, ctypes.POINTER(cls._library.types.Octet))
+                    (name, ctypes.POINTER(cls._module.library.types.Octet))
                     )
                 cls._generic_members_.append((name, argtype))
             else:
                 fields.append((name, argtype))
         # TODO: bitfields??
         fields = struct._fields_ = [
-                ('__super__', cls._library.types.Object)
+                ('__super__', cls._module.library.types.Object)
                 ] + fields
 #        struct._anonymous_ = ('__super__',)
         cls._struct = struct
         # connect the ooc class to the python class
-        cls._library._add_class_type(cls.class_(), cls)
+        cls._module._add_class_type(cls.class_(), cls)
 
     @classmethod
     def constructor(cls, suffix='', argtypes=None):
@@ -371,7 +389,7 @@ class GenericClass(Class):
             name = 'new_' + suffix
         else:
             name = 'new'
-        type_argtypes = [ctypes.POINTER(cls._library.types.Class) for _ in cls._generic_types_]
+        type_argtypes = [ctypes.POINTER(cls._module.library.types.Class) for _ in cls._generic_types_]
         return cls.static_method(name, cls, type_argtypes + argtypes)
 
     def get_generic_member(self, name):
@@ -381,7 +399,7 @@ class GenericClass(Class):
         typename = dict(type(self)._generic_members_)[name]
         typevalue = getattr(self.contents, typename)
         value = getattr(self.contents, name)
-        typ = type(self)._library._get_class_type(typevalue)
+        typ = type(self)._module._get_class_type(typevalue)
         return ctypes.cast(value, ctypes.POINTER(typ)).contents
         
 class Cover(KindOfClass):
@@ -396,7 +414,7 @@ class Cover(KindOfClass):
         struct._fields_ = cls._fields_
         cls._struct = struct
         # connect the ooc class to the python class
-        cls._library._add_class_type(cls.class_(), cls)
+        cls._module._add_class_type(cls.class_(), cls)
 
 # We import it here because types.py needs Cover.
 from . import types

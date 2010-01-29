@@ -1,11 +1,8 @@
-Test: class <T> {
-    message: T
+Greeter: class {
+    msg: String
 
-    init: func (msg: String) {
-        message = msg
-    }
-
-    printy: func {
-        T name println()
+    init: func (=msg) {}
+    greet: func {
+        "Hello %s!" format(msg) println()
     }
 }

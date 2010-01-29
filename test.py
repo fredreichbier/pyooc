@@ -1,21 +1,22 @@
 import pyooc
 
 lib = pyooc.Library('./libtest.so')
-lib._test_load = lib._test_load
-lib._test_load()
+mod = lib.get_module('test')
 
-class Test(pyooc.GenericClass):
-    _generic_types_ = ['T']
+class Greeter(pyooc.Class):
+    _methods_ = [
+            ('greet', None, None),
+        ]
     _fields_ = [
-        ('message', 'T'),
-    ]
+            ('msg', lib.types.String),
+        ]
     _constructors_ = [
-        ('', [lib.types.String])
-    ]
+            ('', [lib.types.String]),
+        ]
 
-Test.bind(lib)
-Test.add_method('printy')
+Greeter.bind(mod)
 
-test = Test.new(lib.types.String.class_(), 'heeeeeeeya')
-test.printy()
-print test.get_generic_member('message').value
+greeter = Greeter.new('You')
+greeter.greet()
+
+print greeter.contents.msg.value
