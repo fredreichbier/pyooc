@@ -60,11 +60,11 @@ class Library(ctypes.CDLL):
         ctypes.CDLL.__init__(self, *args, **kwargs)
         self.types = types.Types(self)
 
-    def get_module(self, path):
-        return Module(self, path)
+    def get_module(self, path, autoload=True):
+        return Module(self, path, autoload)
 
 class Module(object):
-    def __init__(self, library, path):
+    def __init__(self, library, path, autoload=True):
         self.library = library
         self.path = path
         self.member_prefix = re.sub(r'[^a-zA-Z0-9_]', '_', path) + '__'
@@ -72,6 +72,16 @@ class Module(object):
             self.member_prefix = '_' + self.member_prefix
         #: We're storing the class pointer -> pyooc class connection here.
         self._classes = {}
+        if autoload:
+            self.load()
+
+    def load(self):
+        """
+            Call the "_%s_load" % member_prefix[:-2] function.
+            (module "lang/types" -> "_lang_types_load")
+        """
+        load = self.library['_%s_load' % self.member_prefix[:-2]]
+        load()
 
     def __getattr__(self, key):
         return self[key]

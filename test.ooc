@@ -6,3 +6,5 @@ Greeter: class {
         "Hello %s!" format(msg) println()
     }
 }
+
+"Hell yeah! I was called!" println()
