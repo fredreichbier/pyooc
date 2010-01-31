@@ -1,4 +1,4 @@
-from pyooc import Class
+from pyooc.ffi import Class
 
 def bind(lib):
     module = lib.get_module('text/StringBuffer')
