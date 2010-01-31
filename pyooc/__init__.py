@@ -262,11 +262,12 @@ class KindOfClass(object):
         name = cls._get_name(name)
         func = cls._module[name]
         # We'll just say the `this` pointer is a void pointer for convenience.
-        func.argtypes = [ctypes.POINTER(None)]
         if restype is not None:
             func.restype = restype
         if argtypes is not None:
-            func.argtypes.extend(argtypes)
+            func.argtypes = [ctypes.POINTER(None)] + argtypes
+        else:
+            func.argtypes = [ctypes.POINTER(None)]
         return func
 
     @classmethod

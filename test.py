@@ -1,22 +1,14 @@
 import pyooc
+import pyooc.sdk.text.StringBuffer
 
 lib = pyooc.Library('./libtest.so')
-mod = lib.get_module('test')
 
-class Greeter(pyooc.Class):
-    _methods_ = [
-            ('greet', None, None),
-        ]
-    _fields_ = [
-            ('msg', lib.types.String),
-        ]
-    _constructors_ = [
-            ('', [lib.types.String]),
-        ]
+test = lib.get_module('test')
 
-Greeter.bind(mod)
+string_buffer = pyooc.sdk.text.StringBuffer.bind(lib)
+buf = string_buffer.StringBuffer.new()
 
-greeter = Greeter.new('You')
-greeter.greet()
+for _ in xrange(3):
+    buf.write_chr('A')
 
-print greeter.contents.msg.value
+print buf.toString().value
