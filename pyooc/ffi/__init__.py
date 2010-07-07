@@ -59,9 +59,19 @@ class Library(ctypes.CDLL):
     def __init__(self, *args, **kwargs):
         ctypes.CDLL.__init__(self, *args, **kwargs)
         self.types = types.Types(self)
+        #: We're storing the class pointer -> pyooc class connection here.
+        self._classes = {}
 
     def get_module(self, path, autoload=True):
         return Module(self, path, autoload)
+
+    def _add_class_type(self, ooc, py):
+        address = ctypes.addressof(ooc.contents)
+        self._classes[address] = py
+
+    def _get_class_type(self, ooc):
+        address = ctypes.addressof(ooc.contents)
+        return self._classes[address]
 
 class Module(object):
     def __init__(self, library, path, autoload=True):
@@ -70,8 +80,6 @@ class Module(object):
         self.member_prefix = re.sub(r'[^a-zA-Z0-9_]', '_', path) + '__'
         if re.match(r'^[^a-zA-Z0-9_]', self.member_prefix):
             self.member_prefix = '_' + self.member_prefix
-        #: We're storing the class pointer -> pyooc class connection here.
-        self._classes = {}
         if autoload:
             self.load()
 
@@ -111,14 +119,6 @@ class Module(object):
         if (add_operator and py_special_name is not None):
             setattr(argtypes[0], py_special_name, method)
         return method
-
-    def _add_class_type(self, ooc, py):
-        address = ctypes.addressof(ooc.contents)
-        self._classes[address] = py
-
-    def _get_class_type(self, ooc):
-        address = ctypes.addressof(ooc.contents)
-        return self._classes[address]
 
     def generic_function(self, name, generic_types, restype, argtypes=(), method=False):
         if argtypes is None:
@@ -353,7 +353,7 @@ class Class(KindOfClass, ctypes.c_void_p):
 #        struct._anonymous_ = ('__super__',)
         cls._struct = struct
         # connect the ooc class to the python class
-        cls._module._add_class_type(cls.class_(), cls)
+        cls._module.library._add_class_type(cls.class_(), cls)
 
 class GenericClass(Class):
     _generic_types_ = ()
@@ -389,7 +389,7 @@ class GenericClass(Class):
 #        struct._anonymous_ = ('__super__',)
         cls._struct = struct
         # connect the ooc class to the python class
-        cls._module._add_class_type(cls.class_(), cls)
+        cls._module.library._add_class_type(cls.class_(), cls)
 
     @classmethod
     def constructor(cls, suffix='', argtypes=None):
@@ -410,7 +410,7 @@ class GenericClass(Class):
         typename = dict(type(self)._generic_members_)[name]
         typevalue = getattr(self.contents, typename)
         value = getattr(self.contents, name)
-        typ = type(self)._module._get_class_type(typevalue)
+        typ = type(self)._module.library._get_class_type(typevalue)
         return ctypes.cast(value, ctypes.POINTER(typ)).contents
         
 class Cover(KindOfClass):
@@ -425,7 +425,7 @@ class Cover(KindOfClass):
         struct._fields_ = cls._fields_
         cls._struct = struct
         # connect the ooc class to the python class
-        cls._module._add_class_type(cls.class_(), cls)
+        cls._module.library._add_class_type(cls.class_(), cls)
 
 # We import it here because types.py needs Cover.
 from . import types
