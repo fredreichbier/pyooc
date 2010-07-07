@@ -77,10 +77,10 @@ class Module(object):
 
     def load(self):
         """
-            Call the "_%s_load" % member_prefix[:-2] function.
-            (module "lang/types" -> "_lang_types_load")
+            Call the "%s_load" % member_prefix[:-2] function.
+            (module "lang/types" -> "lang_types_load")
         """
-        load = self.library['_%s_load' % self.member_prefix[:-2]]
+        load = self.library['%s_load' % self.member_prefix[:-2]]
         load()
 
     def __getattr__(self, key):
