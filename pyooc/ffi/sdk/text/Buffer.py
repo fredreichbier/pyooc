@@ -1,18 +1,18 @@
 from pyooc.ffi import Class
 
 def bind(lib):
-    module = lib.get_module('text/StringBuffer')
+    module = lib.get_module('text/Buffer')
 
-    class StringBuffer(Class):
+    class Buffer(Class):
         _methods_ = [
-                ('write_chr', None, [lib.types.Char]),
+                ('append_chr', None, [lib.types.Char]),
                 ('toString', lib.types.String, None),
         ]
         _constructors_ = [
                 ('', None),
         ]
 
-    StringBuffer.bind(module)
+    Buffer.bind(module)
 
-    module.StringBuffer = StringBuffer
+    module.Buffer = Buffer
     return module

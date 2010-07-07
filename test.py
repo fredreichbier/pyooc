@@ -1,14 +1,14 @@
 import pyooc.ffi
-import pyooc.ffi.sdk.text.StringBuffer
+import pyooc.ffi.sdk.text.Buffer
 
 lib = pyooc.ffi.Library('./libtest.so')
 
 test = lib.get_module('test')
 
-string_buffer = pyooc.ffi.sdk.text.StringBuffer.bind(lib)
-buf = string_buffer.StringBuffer.new()
+buffer = pyooc.ffi.sdk.text.Buffer.bind(lib)
+buf = buffer.Buffer.new()
 
 for _ in xrange(3):
-    buf.write_chr('A')
+    buf.append_chr('A')
 
 print buf.toString().value
