@@ -61,9 +61,13 @@ class Library(ctypes.CDLL):
         self.types = types.Types(self)
         #: We're storing the class pointer -> pyooc class connection here.
         self._classes = {}
+        self._module_cache = {}
 
     def get_module(self, path, autoload=True):
-        return Module(self, path, autoload)
+        # TODO: respect autoload?
+        if path not in self._module_cache:
+            self._module_cache[path] = Module(self, path, autoload)
+        return self._module_cache[path]
 
     def _add_class_type(self, ooc, py):
         address = ctypes.addressof(ooc.contents)
@@ -140,12 +144,12 @@ class Module(object):
         # ooc's generic functions take the classes of the template
         # types as first arguments.
         for _ in generic_types:
-            pass_argtypes.append(ctypes.POINTER(self.types.Class))
+            pass_argtypes.append(ctypes.POINTER(self.library.types.Class))
         # then all arguments follow
         for argtype in argtypes:
             # a templated argtype will be a pointer to a value.
             if argtype in generic_types:
-                pass_argtypes.append(ctypes.POINTER(self.types.Octet))
+                pass_argtypes.append(ctypes.POINTER(self.library.types.Octet))
             else:
                 pass_argtypes.append(argtype)
         # yep, it's ready.
@@ -182,7 +186,7 @@ class Module(object):
                             ctypes.cast(
                                 ctypes.pointer(arg),
                                 ctypes.POINTER(
-                                    self.types.Octet
+                                    self.library.types.Octet
                                     )
                                 ))
                     if argtype not in generic_types_types:
@@ -208,6 +212,7 @@ class KindOfClass(object):
     _struct = None
     _methods_ = None
     _static_methods_ = None
+    _generic_methods_ = None
     _constructors_ = None
 
     @classmethod
@@ -224,7 +229,7 @@ class KindOfClass(object):
     def _add_predefined(cls):
         """
             add all predefined members in *_methods_*,
-            *_static_methods_* and *_constructors_*.
+            *_static_methods_*, *_generic_methods_* and *_constructors_*.
         """
         if cls._methods_ is not None:
             for name, restype, argtypes in cls._methods_:
@@ -232,6 +237,9 @@ class KindOfClass(object):
         if cls._static_methods_ is not None:
             for name, restype, argtypes in cls._static_methods_:
                 cls.add_static_method(name, restype, argtypes)
+        if cls._generic_methods_ is not None:
+            for name, generic_types, restype, argtypes in cls._generic_methods_:
+                cls.add_generic_method(name, generic_types, restype, argtypes)
         if cls._constructors_ is not None:
             for suffix, argtypes in cls._constructors_:
                 cls.add_constructor(suffix, argtypes)
@@ -314,8 +322,8 @@ class KindOfClass(object):
         setattr(cls, name, method)
 
     @classmethod
-    def add_generic_method(cls, name, *args, **kwargs):
-        ctypes_meth = cls.generic_method(name, *args, **kwargs)
+    def add_generic_method(cls, name, generic_types, *args, **kwargs):
+        ctypes_meth = cls.generic_method(name, generic_types, *args, **kwargs)
         def method(self, *args, **kwargs):
             return ctypes_meth(self, *args, **kwargs)
         setattr(cls, name, method)
