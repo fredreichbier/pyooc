@@ -1,9 +1,14 @@
-Person: class <T> {
-    value: T
+Greeter: class {
+    msg: String
 
-    init: func (=value) {}
-    getValue: func -> T { value }
-    setValue: func (=value) {}
+    init: func (=msg) {}
+    greet: func {
+        "Hello %s!" format(msg) println()
+    }
+
+    compareTo: func <T> (value: T) -> Int {
+        0
+    }
 }
 
 "Hell yeah! I was called!" println()

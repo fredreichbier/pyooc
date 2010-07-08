@@ -10,12 +10,43 @@ class SorryError(NotImplementedError):
 C_TYPES_MAP = {
     'int': ctypes.c_int,
     'va_list': ctypes.c_void_p,
+    'float': ctypes.c_float,
+    'uint8_t': ctypes.c_uint8,
+    'uint16_t': ctypes.c_uint16,
+    'uint32_t': ctypes.c_uint32,
+    'uint64_t': ctypes.c_uint64,
+    'int8_t': ctypes.c_int8,
+    'int16_t': ctypes.c_int16,
+    'int32_t': ctypes.c_int32,
+    'int64_t': ctypes.c_int64,
+    'signed long': ctypes.c_long,
+    'unsigned long': ctypes.c_ulong,
+    'bool': ctypes.c_bool,
+    'long double': ctypes.c_longdouble,
+    'wchar_t': ctypes.c_wchar,
+    'size_t': ctypes.c_size_t,
+    'double': ctypes.c_double,
+    'unsigned long long': ctypes.c_ulonglong,
+    'char': ctypes.c_char,
+    'double': ctypes.c_double,
+    'unsigned char': ctypes.c_ubyte,
+    'void*': ctypes.c_void_p,
+    'signed short': ctypes.c_short,
+    'unsigned short': ctypes.c_ushort,
+    'signed long long': ctypes.c_longlong,
+    'signed int': ctypes.c_int,
+    'unsigned int': ctypes.c_uint,
+    'signed char': ctypes.c_char,
 }
 
 def resolve_c_type(library, repo, zero_module, typename):
-    if typename.endswith('*'):
+    if typename in C_TYPES_MAP:
+        return C_TYPES_MAP[typename]
+    elif typename.endswith('*'):
         return ctypes.POINTER(resolve_c_type(library, repo, zero_module, typename[:-1]))
-    return C_TYPES_MAP.get(typename, ctypes.c_void_p) # TODO: In doubt, just return c_void_p. That doesn't sound sane.
+    else:
+        print 'Unknown type: %r' % typename
+        return ctypes.c_void_p
 
 def resolve_type(library, repo, zero_module, tag):
     if '(' in tag:
@@ -35,11 +66,13 @@ def resolve_type(library, repo, zero_module, tag):
             return getattr(module, tag)
         else:
             # nay.
-            print 'searching in global imports - %r' % tag
             # TODO: namespaced imports
+            # types?
             for import_path in zero_module.global_imports:
                 if hasattr(library.get_module(import_path), tag):
                     return getattr(library.get_module(import_path), tag)
+            if hasattr(library.types, tag):
+                return getattr(library.types, tag)
             raise SorryError('Unknown type: %r' % tag)
 
 def llamaize_function(library, repo, zero_module, cls_entity, entity):
@@ -72,7 +105,7 @@ def llamaize_function(library, repo, zero_module, cls_entity, entity):
 
 def llamaize_class(library, repo, zero_module, entity):
     """
-        Return a :class:`pyooc.ffi.Class`.
+        Works for classes and covers!
     """
     methods = []
     fields = []
@@ -84,7 +117,7 @@ def llamaize_class(library, repo, zero_module, entity):
             # Yay method! llamaize it ...
             llamaized = llamaize_function(library, repo, zero_module, entity, member)
             name = name.replace('~', '_')
-            if name == 'init' or name.startswith('init~'):
+            if name == 'new' or name.startswith('new~'):
                 if '~' in name:
                     constructors.append((name[name.index('~') + 1:], llamaized['arguments']))
                 else:
@@ -95,7 +128,6 @@ def llamaize_class(library, repo, zero_module, entity):
                     if llamaized['static']:
                         raise SorryError('sorry, no static generic methods yet. here is your crowbar')
                     generic_methods.append((name, llamaized['generic_types'], llamaized['return_type'], llamaized['arguments']))
-                    print generic_methods
                 else:
                     if llamaized['static']:
                         static_methods.append(info)
@@ -111,10 +143,11 @@ def llamaize_class(library, repo, zero_module, entity):
         '_static_methods_': static_methods,
         '_generic_methods_': generic_methods,
         '_constructors_': constructors,
-        '_generic_types_': entity.generic_types, # isn't needed in Class, but we do it anyway.
+        '_generic_types_': getattr(entity, 'generic_types', None), # isn't needed in Class/Cover, but we do it anyway.
     }
     module = library.get_module(zero_module.path)
     cls = getattr(module, entity.name)
+    print cls
     for n, i in dct.iteritems():
         setattr(cls, n, i)
     cls.bind(module)
@@ -138,17 +171,23 @@ def llamaize_module(library, repo, path):
     """
         Return a :class:`pyooc.ffi.Module`.
     """
+    if path == 'lang/types':
+        return
     # Do all deps minimally
     entity = repo.get_module(path)
-    for import_path in entity.global_imports + ['lang/types']: # TODO: why do we have to add lang/types here?
+    for import_path in entity.global_imports:
         llamaize_module_minimal(library, repo, import_path)
+    # Do myself minimally.
+    llamaize_module_minimal(library, repo, path)
     # Now do the real stuff.
     module = library.get_module(path)
     for name, member in entity.members.iteritems():
-        if isinstance(member, zero.Class):
+        if isinstance(member, (zero.Class, zero.Cover)):
             llamaize_class(library, repo, entity, member)
 
 def llamaize_module_minimal(library, repo, path):
+    if path == 'lang/types':
+        return
     entity = repo.get_module(path)
     module = library.get_module(path)
     for name, member in entity.members.iteritems():
