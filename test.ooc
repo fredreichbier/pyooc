@@ -1,14 +1,9 @@
-Greeter: class implements Comparable {
-    msg: String
+Person: class <T> {
+    value: T
 
-    init: func (=msg) {}
-    greet: func {
-        "Hello %s!" format(msg) println()
-    }
-
-    compareTo: func <T> (value: T) -> Int {
-        0
-    }
+    init: func (=value) {}
+    getValue: func -> T { value }
+    setValue: func (=value) {}
 }
 
 "Hell yeah! I was called!" println()

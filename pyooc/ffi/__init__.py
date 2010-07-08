@@ -8,24 +8,6 @@ class BindingError(Exception):
 
 CTYPES_BASE_TYPE = type(ctypes.c_char_p)
 
-def convert_to_ctypes(value):
-    if value is None:
-        return ctypes.c_void_p()
-    elif isinstance(value, (Class, Cover)):
-        return value
-    elif isinstance(value, int):
-        return ctypes.c_int(value)
-    elif isinstance(value, long):
-        return ctypes.c_long(value) # TODO: unsigned?
-    elif isinstance(value, str):
-        return ctypes.c_char_p(value)
-    elif isinstance(value, unicode):
-        return ctypes.c_wchar_p(value)
-    elif hasattr(value, '_as_parameter_'):
-        return value._as_parameter_
-    else:
-        raise BindingError("No idea how to convert %r" % value)
-
 OPERATORS = {
         '+': ('ADD', '__add__'),
         '+=': ('ADD_ASS', '__iadd__'),
@@ -101,6 +83,24 @@ class Module(object):
     def __getitem__(self, key):
         return self.library[self.member_prefix + key]
 
+    def convert_to_ctypes(self, value):
+        if value is None:
+            return self.library.types.Pointer()
+        elif isinstance(value, (Class, Cover)):
+            return value
+        elif isinstance(value, int):
+            return self.library.types.Int(value)
+        elif isinstance(value, long):
+            return self.library.types.Long(value) # TODO: unsigned?
+        elif isinstance(value, str):
+            return self.library.types.String(value)
+#        elif isinstance(value, unicode):
+#            return ctypes.c_wchar_p(value)
+        elif hasattr(value, '_as_parameter_'):
+            return value._as_parameter_
+        else:
+            raise BindingError("No idea how to convert %r" % value)
+
     def add_operator(self, op, restype, argtypes, add_operator=True, member=None):
         # get the ooc function name
         ooc_op, py_special_name = OPERATORS[op]
@@ -124,12 +124,13 @@ class Module(object):
             setattr(argtypes[0], py_special_name, method)
         return method
 
-    def generic_function(self, name, generic_types, restype, argtypes=(), method=False):
+    def generic_function(self, name, generic_types, restype, argtypes=(), method=False, additional_generic_types=()):
+        # `additional_generic_types` are generic typenames that don't get passed.
         if argtypes is None:
             argtypes = []
         # is the return value a generic type? if yes, the
         # ooc-generated function looks a bit different :)
-        return_generic = restype in generic_types
+        return_generic = (restype in generic_types or restype in additional_generic_types)
         # get the method
         func = self[name]
         # now construct the argument list.
@@ -148,7 +149,7 @@ class Module(object):
         # then all arguments follow
         for argtype in argtypes:
             # a templated argtype will be a pointer to a value.
-            if argtype in generic_types:
+            if (argtype in generic_types or argtype in additional_generic_types):
                 pass_argtypes.append(ctypes.POINTER(self.library.types.Octet))
             else:
                 pass_argtypes.append(argtype)
@@ -170,17 +171,25 @@ class Module(object):
             # if the return value is generic, the user has to
             # pass the type explicitly.
             if return_generic:
-                restype = kwargs.pop('restype')
-                assert not kwargs
-                assert restype # TODO: nice error
-                result = restype()
-                pass_args.append(ctypes.pointer(result))
+                if (method and restype in additional_generic_types):
+                    # Yay generic type restype AND a method AND class-wide
+                    # generic type. TODO: BAH EVILNESS
+                    restype_ = getattr(pass_args[0].contents, restype)
+                    # allocate some memory for dinner
+                    result = self.library._get_class_type(restype_)()
+                    pass_args.append(ctypes.pointer(result))
+                else:
+                    restype_ = kwargs.pop('restype')
+                    assert not kwargs
+                    assert restype_ # TODO: nice error
+                    result = restype_()
+                    pass_args.append(ctypes.pointer(result))
             generic_types_types = {}
             regular_args = []
             for argtype, arg in zip(argtypes, args):
                 # is it generic?
-                arg = convert_to_ctypes(arg)
-                if argtype in generic_types:
+                arg = self.convert_to_ctypes(arg)
+                if (argtype in generic_types or argtype in additional_generic_types):
                     # yes. pass a pointer.
                     regular_args.append(
                             ctypes.cast(
@@ -246,6 +255,7 @@ class KindOfClass(object):
 
     @classmethod
     def bind(cls, module):
+        assert isinstance(module, Module)
         cls._module = module
         # add all predefined members
         cls._add_predefined()
@@ -409,6 +419,8 @@ class GenericClass(Class):
         else:
             name = 'new'
         type_argtypes = [ctypes.POINTER(cls._module.library.types.Class) for _ in cls._generic_types_]
+        if argtypes is None:
+            argtypes = []
         return cls.static_method(name, cls, type_argtypes + argtypes)
 
     def get_generic_member(self, name):
@@ -420,7 +432,63 @@ class GenericClass(Class):
         value = getattr(self.contents, name)
         typ = type(self)._module.library._get_class_type(typevalue)
         return ctypes.cast(value, ctypes.POINTER(typ)).contents
-        
+
+    @classmethod
+    def generic_method(cls, name, generic_types, restype=None, argtypes=None):
+        cls.setup()
+        if cls._module is None:
+            raise BindingError("You have to bind the class to a library!")
+        name = cls._get_name(name)
+        # We'll just say the `this` pointer is a void pointer for convenience.
+        # That's now done by `generic_function`
+        #argtypes = [ctypes.POINTER(None)] + argtypes
+        return cls._module.generic_function(name, generic_types, restype, argtypes,
+                                            True, cls._generic_types_)
+
+    @classmethod
+    def method(cls, name, restype=None, argtypes=None):
+        cls.setup()
+        if cls._module is None:
+            raise BindingError("You have to bind the class to a library!")
+        name = cls._get_name(name)
+        func = cls._module[name]
+        if restype is not None:
+            if restype in cls._generic_types_:
+                # ggggeneric function!
+                return cls._module.generic_function(name, (), restype, argtypes, True, cls._generic_types_)
+            else:
+                func.restype = restype
+        if argtypes is not None:
+            if any(a in cls._generic_types_ for a in argtypes):
+                # gooonoroc!
+                return cls._module.generic_function(name, (), restype, argtypes, True, cls._generic_types_)
+            else:
+                func.argtypes = [ctypes.POINTER(None)] + argtypes
+        else:
+            func.argtypes = [ctypes.POINTER(None)]
+        return func
+
+    @classmethod
+    def static_method(cls, name, restype=None, argtypes=None):
+        cls.setup()
+        if cls._module is None:
+            raise BindingError("You have to bind the class to a library!")
+        name = cls._get_name(name)
+        func = cls._module[name]
+        if restype is not None:
+            if restype in cls._generic_types_:
+                # ggggeneric function!
+                return cls._module.generic_function(name, (), restype, argtypes, True, cls._generic_types_)
+            else:
+                func.restype = restype
+        if argtypes is not None:
+            if any(a in cls._generic_types_ for a in argtypes):
+                # gooonoroc!
+                return cls._module.generic_function(name, (), restype, argtypes, True, cls._generic_types_)
+            else:
+                func.argtypes = argtypes
+        return func
+
 class Cover(KindOfClass):
     @classmethod
     def _setup(cls):
