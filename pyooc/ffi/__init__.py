@@ -37,6 +37,8 @@ OPERATORS = {
 # Hey, we've got to load libgc!
 GC = ctypes.CDLL(ctypes.util.find_library('gc'), ctypes.RTLD_GLOBAL)
 
+_CData = ctypes._SimpleCData.__bases__[0] # I now feel evil.
+
 class Library(ctypes.CDLL):
     def __init__(self, *args, **kwargs):
         ctypes.CDLL.__init__(self, *args, **kwargs)
@@ -98,7 +100,10 @@ class Module(object):
 #            return ctypes.c_wchar_p(value)
         elif hasattr(value, '_as_parameter_'):
             return value._as_parameter_
+        elif isinstance(value, _CData):
+            return value
         else:
+            print help(value)
             raise BindingError("No idea how to convert %r" % value)
 
     def add_operator(self, op, restype, argtypes, add_operator=True, member=None):
@@ -353,6 +358,8 @@ class KindOfClass(object):
         setattr(cls, name, staticmethod(ctypes_meth)) # TODO: overloaded?
 
 class Class(KindOfClass, ctypes.c_void_p):
+    _generic_types_ = None
+
     @property
     def contents(self):
         return ctypes.cast(self, ctypes.POINTER(type(self)._struct)).contents
@@ -364,29 +371,10 @@ class Class(KindOfClass, ctypes.c_void_p):
         struct = type(cls.__name__ + 'Struct', (ctypes.Structure,), {})
         if cls._fields_ is None:
             cls._fields_ = []
-        # TODO: bitfields??
-        fields = struct._fields_ = [
-                ('__super__', cls._module.library.types.Object)
-                ] + cls._fields_
-#        struct._anonymous_ = ('__super__',)
-        cls._struct = struct
-        # connect the ooc class to the python class
-        cls._module.library._add_class_type(cls.class_(), cls)
-
-class GenericClass(Class):
-    _generic_types_ = ()
-
-    @classmethod
-    def _setup(cls):
-        if cls._name_ is None:
-            cls._name_ = cls.__name__
-        if not cls._generic_types_:
-            raise BindingError("%s is a generic class, but has no generic types set" % cls.__name__)
-        struct = type(cls.__name__ + 'Struct', (ctypes.Structure,), {})
-        if cls._fields_ is None:
-            cls._fields_ = []
         fields = []
-        cls._generic_members_ = []
+        cls._generic_members = []
+        if cls._generic_types_ is None:
+            cls._generic_types_ = ()
         # add the Class pointers. They are done in the reverse order.
         for typename in cls._generic_types_[::-1]:
             fields.append(
@@ -397,7 +385,7 @@ class GenericClass(Class):
                 fields.append(
                     (name, ctypes.POINTER(cls._module.library.types.Octet))
                     )
-                cls._generic_members_.append((name, argtype))
+                cls._generic_members.append((name, argtype))
             else:
                 fields.append((name, argtype))
         # TODO: bitfields??
@@ -427,7 +415,7 @@ class GenericClass(Class):
         """
             Return the value of the generic member *name*, correctly typed.
         """
-        typename = dict(type(self)._generic_members_)[name]
+        typename = dict(type(self)._generic_members)[name]
         typevalue = getattr(self.contents, typename)
         value = getattr(self.contents, name)
         typ = type(self)._module.library._get_class_type(typevalue)
@@ -478,13 +466,13 @@ class GenericClass(Class):
         if restype is not None:
             if restype in cls._generic_types_:
                 # ggggeneric function!
-                return cls._module.generic_function(name, (), restype, argtypes, True, cls._generic_types_)
+                return cls._module.generic_function(name, (), restype, argtypes, False, cls._generic_types_)
             else:
                 func.restype = restype
         if argtypes is not None:
             if any(a in cls._generic_types_ for a in argtypes):
                 # gooonoroc!
-                return cls._module.generic_function(name, (), restype, argtypes, True, cls._generic_types_)
+                return cls._module.generic_function(name, (), restype, argtypes, False, cls._generic_types_)
             else:
                 func.argtypes = argtypes
         return func

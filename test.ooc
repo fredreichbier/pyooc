@@ -5,10 +5,15 @@ Greeter: class {
     greet: func {
         "Hello %s!" format(msg) println()
     }
+}
 
-    compareTo: func <T> (value: T) -> Int {
-        0
-    }
+AnotherCell: class <T> {
+    value: T
+
+    getValue: func -> T { value }
+    setValue: func (=value) {}
+
+    init: func (=value) {}
 }
 
 "Hell yeah! I was called!" println()
