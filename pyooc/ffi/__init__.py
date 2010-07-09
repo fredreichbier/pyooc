@@ -227,6 +227,7 @@ class KindOfClass(object):
     _static_methods_ = None
     _generic_methods_ = None
     _constructors_ = None
+    _generic_types_ = None
     _extends_ = None
 
     @classmethod
@@ -276,130 +277,6 @@ class KindOfClass(object):
         if basename is None:
             basename = cls.__name__
         return '_'.join((basename, name))
-
-    @classmethod
-    def method(cls, name, restype=None, argtypes=None):
-        cls.setup()
-        if cls._module is None:
-            raise BindingError("You have to bind the class to a library!")
-        name = cls._get_name(name)
-        func = cls._module[name]
-        # We'll just say the `this` pointer is a void pointer for convenience.
-        if restype is not None:
-            func.restype = restype
-        if argtypes is not None:
-            func.argtypes = [ctypes.POINTER(None)] + argtypes
-        else:
-            func.argtypes = [ctypes.POINTER(None)]
-        return func
-
-    @classmethod
-    def generic_method(cls, name, generic_types, restype=None, argtypes=None):
-        cls.setup()
-        if cls._module is None:
-            raise BindingError("You have to bind the class to a library!")
-        name = cls._get_name(name)
-        # We'll just say the `this` pointer is a void pointer for convenience.
-        # That's now done by `generic_function`
-        #argtypes = [ctypes.POINTER(None)] + argtypes
-        return cls._module.generic_function(name, generic_types, restype, argtypes, True)
-
-    @classmethod
-    def static_method(cls, name, restype=None, argtypes=None):
-        cls.setup()
-        if cls._module is None:
-            raise BindingError("You have to bind the class to a library!")
-        name = cls._get_name(name)
-        func = cls._module[name]
-        if restype is not None:
-            func.restype = restype
-        if argtypes is not None:
-            func.argtypes = argtypes
-        return func
-
-    @classmethod
-    def constructor(cls, suffix='', argtypes=None):
-        """
-            a constructor is a static method `new` that
-            returns a pointer to *cls._struct*.
-        """
-        if suffix:
-            name = 'new_' + suffix
-        else:
-            name = 'new'
-        return cls.static_method(name, cls, argtypes)
-
-    @classmethod
-    def add_method(cls, name, *args, **kwargs):
-        ctypes_meth = cls.method(name, *args, **kwargs)
-        def method(self, *args, **kwargs):
-            return ctypes_meth(self, *args, **kwargs)
-        setattr(cls, name, method)
-
-    @classmethod
-    def add_generic_method(cls, name, generic_types, *args, **kwargs):
-        ctypes_meth = cls.generic_method(name, generic_types, *args, **kwargs)
-        def method(self, *args, **kwargs):
-            return ctypes_meth(self, *args, **kwargs)
-        setattr(cls, name, method)
-
-    @classmethod
-    def add_static_method(cls, name, *args, **kwargs):
-        ctypes_meth = cls.static_method(name, *args, **kwargs)
-        setattr(cls, name, staticmethod(ctypes_meth))
-
-    @classmethod
-    def add_constructor(cls, suffix='', argtypes=None):
-        ctypes_meth = cls.constructor(suffix, argtypes)
-        if suffix:
-            name = 'new_' + suffix
-        else:
-            name = 'new'
-        setattr(cls, name, staticmethod(ctypes_meth)) # TODO: overloaded?
-
-class Class(KindOfClass, ctypes.c_void_p):
-    _generic_types_ = None
-
-    @property
-    def contents(self):
-        return ctypes.cast(self, ctypes.POINTER(type(self)._struct)).contents
-
-    @classmethod
-    def _setup(cls):
-        if cls._name_ is None:
-            cls._name_ = cls.__name__
-        if cls._fields_ is None:
-            cls._fields_ = []
-        # Super type?
-        super_type = cls._module.library.types.Object
-        if cls._extends_ is not None:
-            cls.__bases__ = (cls._extends_,)
-            super_type = cls._extends_._struct
-        fields = [('__super__', super_type)]
-        # And now - members!
-        cls._generic_members = []
-        if cls._generic_types_ is None:
-            cls._generic_types_ = ()
-        # add the Class pointers. They are done in the reverse order.
-        for typename in cls._generic_types_[::-1]:
-            fields.append(
-                    (typename, ctypes.POINTER(cls._module.library.types.Class))
-                    )
-        for name, argtype in cls._fields_[:]:
-            if argtype in cls._generic_types_:
-                fields.append(
-                    (name, ctypes.POINTER(cls._module.library.types.Octet))
-                    )
-                cls._generic_members.append((name, argtype))
-            else:
-                fields.append((name, argtype))
-        struct = type(ctypes.Structure)(cls.__name__ + 'Struct', (ctypes.Structure,), {
-            '_anonymous_': ['__super__'],
-            '_fields_': fields,
-        })
-        cls._struct = struct
-        # connect the ooc class to the python class
-        cls._module.library._add_class_type(cls.class_(), cls)
 
     @classmethod
     def constructor(cls, suffix='', argtypes=None):
@@ -481,6 +358,76 @@ class Class(KindOfClass, ctypes.c_void_p):
             else:
                 func.argtypes = argtypes
         return func
+
+    @classmethod
+    def add_method(cls, name, *args, **kwargs):
+        ctypes_meth = cls.method(name, *args, **kwargs)
+        def method(self, *args, **kwargs):
+            return ctypes_meth(self, *args, **kwargs)
+        setattr(cls, name, method)
+
+    @classmethod
+    def add_generic_method(cls, name, generic_types, *args, **kwargs):
+        ctypes_meth = cls.generic_method(name, generic_types, *args, **kwargs)
+        def method(self, *args, **kwargs):
+            return ctypes_meth(self, *args, **kwargs)
+        setattr(cls, name, method)
+
+    @classmethod
+    def add_static_method(cls, name, *args, **kwargs):
+        ctypes_meth = cls.static_method(name, *args, **kwargs)
+        setattr(cls, name, staticmethod(ctypes_meth))
+
+    @classmethod
+    def add_constructor(cls, suffix='', argtypes=None):
+        ctypes_meth = cls.constructor(suffix, argtypes)
+        if suffix:
+            name = 'new_' + suffix
+        else:
+            name = 'new'
+        setattr(cls, name, staticmethod(ctypes_meth)) # TODO: overloaded?
+
+class Class(KindOfClass, ctypes.c_void_p):
+    @property
+    def contents(self):
+        return ctypes.cast(self, ctypes.POINTER(type(self)._struct)).contents
+
+    @classmethod
+    def _setup(cls):
+        if cls._name_ is None:
+            cls._name_ = cls.__name__
+        if cls._fields_ is None:
+            cls._fields_ = []
+        # Super type?
+        super_type = cls._module.library.types.Object
+        if cls._extends_ is not None:
+            cls.__bases__ = (cls._extends_,)
+            super_type = cls._extends_._struct
+        fields = [('__super__', super_type)]
+        # And now - members!
+        cls._generic_members = []
+        if cls._generic_types_ is None:
+            cls._generic_types_ = ()
+        # add the Class pointers. They are done in the reverse order.
+        for typename in cls._generic_types_[::-1]:
+            fields.append(
+                    (typename, ctypes.POINTER(cls._module.library.types.Class))
+                    )
+        for name, argtype in cls._fields_[:]:
+            if argtype in cls._generic_types_:
+                fields.append(
+                    (name, ctypes.POINTER(cls._module.library.types.Octet))
+                    )
+                cls._generic_members.append((name, argtype))
+            else:
+                fields.append((name, argtype))
+        struct = type(ctypes.Structure)(cls.__name__ + 'Struct', (ctypes.Structure,), {
+            '_anonymous_': ['__super__'],
+            '_fields_': fields,
+        })
+        cls._struct = struct
+        # connect the ooc class to the python class
+        cls._module.library._add_class_type(cls.class_(), cls)
 
 class Cover(KindOfClass):
     @classmethod
