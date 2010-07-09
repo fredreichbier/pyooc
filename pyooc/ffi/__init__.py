@@ -400,7 +400,9 @@ class Class(KindOfClass, ctypes.c_void_p):
             cls._fields_ = []
         # Super type?
         super_type = cls._module.library.types.Object
-        if cls._extends_ is not None:
+        if (cls._extends_ is not None and cls._extends_ != super_type):
+            if not issubclass(cls._extends_, Class):
+                raise BindingError("%r is not a valid super-type for %r" % (cls._extends_, cls))
             cls.__bases__ = (cls._extends_,)
             super_type = cls._extends_._struct
         fields = [('__super__', super_type)]

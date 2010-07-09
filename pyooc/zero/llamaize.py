@@ -135,11 +135,13 @@ def llamaize_class(library, repo, zero_module, entity):
                         methods.append(info)
         else:
             print 'ignored', member
-
+    super_class = resolve_type(library, repo, zero_module, entity.extends)
+    # Finally, create the class.
     dct = {
         '_name_': entity.name,
         '_fields_': fields,
         '_methods_': methods,
+        '_extends_': super_class,
         '_static_methods_': static_methods,
         '_generic_methods_': generic_methods,
         '_constructors_': constructors,
@@ -147,16 +149,12 @@ def llamaize_class(library, repo, zero_module, entity):
     }
     module = library.get_module(zero_module.path)
     cls = getattr(module, entity.name)
-    print cls
     for n, i in dct.iteritems():
         setattr(cls, n, i)
     cls.bind(module)
 
 def llamaize_class_minimal(library, repo, zero_module, entity):
-    if entity.generic_types:
-        cls = type(entity.name, (ffi.GenericClass,), {})
-    else:
-        cls = type(entity.name, (ffi.Class,), {})
+    cls = type(entity.name, (ffi.Class,), {})
     setattr(library.get_module(zero_module.path), entity.name, cls)
 
 def llamaize_cover_minimal(library, repo, zero_module, entity):
