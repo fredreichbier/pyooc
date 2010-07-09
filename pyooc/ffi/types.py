@@ -116,7 +116,7 @@ class Types(object):
                     ('class_', ctypes.POINTER(self.Class)),
                 ]
 
-        self.Object = type("Object", (Cover, ctypes.POINTER(ObjectStruct)), {})
+        self.Object = type("Object", (Cover, ctypes.POINTER(ObjectStruct)), {'_fields_': []})
         self.Object.bind(types)
 
 

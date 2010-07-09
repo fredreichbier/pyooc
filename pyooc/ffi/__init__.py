@@ -103,7 +103,6 @@ class Module(object):
         elif isinstance(value, _CData):
             return value
         else:
-            print help(value)
             raise BindingError("No idea how to convert %r" % value)
 
     def add_operator(self, op, restype, argtypes, add_operator=True, member=None):
@@ -228,6 +227,7 @@ class KindOfClass(object):
     _static_methods_ = None
     _generic_methods_ = None
     _constructors_ = None
+    _extends_ = None
 
     @classmethod
     def class_(cls):
@@ -368,10 +368,15 @@ class Class(KindOfClass, ctypes.c_void_p):
     def _setup(cls):
         if cls._name_ is None:
             cls._name_ = cls.__name__
-        struct = type(cls.__name__ + 'Struct', (ctypes.Structure,), {})
         if cls._fields_ is None:
             cls._fields_ = []
-        fields = []
+        # Super type?
+        super_type = cls._module.library.types.Object
+        if cls._extends_ is not None:
+            cls.__bases__ = (cls._extends_,)
+            super_type = cls._extends_._struct
+        fields = [('__super__', super_type)]
+        # And now - members!
         cls._generic_members = []
         if cls._generic_types_ is None:
             cls._generic_types_ = ()
@@ -388,11 +393,10 @@ class Class(KindOfClass, ctypes.c_void_p):
                 cls._generic_members.append((name, argtype))
             else:
                 fields.append((name, argtype))
-        # TODO: bitfields??
-        fields = struct._fields_ = [
-                ('__super__', cls._module.library.types.Object)
-                ] + fields
-#        struct._anonymous_ = ('__super__',)
+        struct = type(ctypes.Structure)(cls.__name__ + 'Struct', (ctypes.Structure,), {
+            '_anonymous_': ['__super__'],
+            '_fields_': fields,
+        })
         cls._struct = struct
         # connect the ooc class to the python class
         cls._module.library._add_class_type(cls.class_(), cls)
@@ -402,6 +406,7 @@ class Class(KindOfClass, ctypes.c_void_p):
         """
             Here, we have to pass the generic types in the arguments.
         """
+        cls.setup()
         if suffix:
             name = 'new_' + suffix
         else:
@@ -482,11 +487,15 @@ class Cover(KindOfClass):
     def _setup(cls):
         if cls._name_ is None:
             cls._name_ = cls.__name__
-        struct = type(cls.__name__ + 'Struct', (ctypes.Structure,), {})
         if cls._fields_ is None:
             cls._fields_ = []
-        # TODO: bitfields??
-        struct._fields_ = cls._fields_
+        bases = (ctypes.Structure,)
+        if cls._extends_ is not None:
+            bases = (cls._extends_._struct,)
+            cls.__bases__ = (cls._extends,)
+        struct = type(cls.__name__ + 'Struct', bases, {
+            '_fields_': cls._fields_,
+        })
         cls._struct = struct
         # connect the ooc class to the python class
         cls._module.library._add_class_type(cls.class_(), cls)

@@ -7,6 +7,16 @@ Greeter: class {
     }
 }
 
+BetterGreeter: class extends Greeter {
+    count: Int
+
+    greet: func {
+        "Hello %s (%d)!" format(msg, count) println()
+    }
+
+    init: func ~better (=msg, =count) { super(msg) }
+}
+
 AnotherCell: class <T> {
     value: T
 
