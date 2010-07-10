@@ -108,21 +108,24 @@ def llamaize_class(library, repo, zero_module, entity):
         Works for classes and covers!
     """
     methods = []
-    fields = []
     static_methods = []
     generic_methods = []
+    fields = []
+    static_fields = []
     constructors = []
     for name, member in entity.members.iteritems():
         if isinstance(member, zero.Method):
             # Yay method! llamaize it ...
             llamaized = llamaize_function(library, repo, zero_module, entity, member)
-            name = name.replace('~', '_')
-            if name == 'new' or name.startswith('new~'):
+            if name in ('new', 'init') or name.startswith('new~') or name.startswith('init~'):
                 if '~' in name:
-                    constructors.append((name[name.index('~') + 1:], llamaized['arguments']))
+                    cname = name[name.index('~') + 1:]
                 else:
-                    constructors.append(('', llamaized['arguments']))
+                    cname = ''
+                if not any(t[0] == cname for t in constructors):
+                    constructors.append((cname, llamaized['arguments']))
             else:
+                name = name.replace('~', '_')
                 info = (name, llamaized['return_type'], llamaized['arguments'])
                 if (llamaized['generic_types'] or llamaized['generic_return_type']):
                     if llamaized['static']:
@@ -134,7 +137,18 @@ def llamaize_class(library, repo, zero_module, entity):
                     else:
                         methods.append(info)
         elif isinstance(member, zero.Field):
-            print member
+            if member.type in entity.generic_types:
+                var_type = member.type
+            else:
+                var_type = resolve_type(library, repo, zero_module, member.type)
+            if member.name in entity.generic_types:
+                # skip the T/U/V... members, they're added in _setup
+                continue
+            field = (member.name, var_type)
+            if 'static' in member.modifiers:
+                static_fields.append(field)
+            else:
+                fields.append(field)
         else:
             print 'ignored', member
     super_class = resolve_type(library, repo, zero_module, entity.extends)
@@ -142,6 +156,7 @@ def llamaize_class(library, repo, zero_module, entity):
     dct = {
         '_name_': entity.name,
         '_fields_': fields,
+        '_static_fields_': static_fields,
         '_methods_': methods,
         '_extends_': super_class,
         '_static_methods_': static_methods,
