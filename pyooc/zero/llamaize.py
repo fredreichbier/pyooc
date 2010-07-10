@@ -133,6 +133,8 @@ def llamaize_class(library, repo, zero_module, entity):
                         static_methods.append(info)
                     else:
                         methods.append(info)
+        elif isinstance(member, zero.Field):
+            print member
         else:
             print 'ignored', member
     super_class = resolve_type(library, repo, zero_module, entity.extends)

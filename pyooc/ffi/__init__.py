@@ -47,6 +47,8 @@ class Library(ctypes.CDLL):
         self._classes = {}
         self._module_cache = {}
 
+        self.types.setup()
+
     def get_module(self, path, autoload=True):
         # TODO: respect autoload?
         if path not in self._module_cache:
@@ -222,6 +224,7 @@ class KindOfClass(object):
     _name_ = None
     _module = None
     _fields_ = None
+    _static_fields_ = None
     _struct = None
     _methods_ = None
     _static_methods_ = None
@@ -229,16 +232,15 @@ class KindOfClass(object):
     _constructors_ = None
     _generic_types_ = None
     _extends_ = None
+    _meta = None
+    _is_meta = False
 
     @classmethod
     def class_(cls):
         """
             oh yay, return my class
         """
-        r = cls.static_method('class',
-                ctypes.POINTER(cls._module.library.types.Class)
-                )()
-        return r
+        return cls.static_method('class', cls._meta)()
 
     @classmethod
     def _add_predefined(cls):
@@ -269,6 +271,9 @@ class KindOfClass(object):
     @classmethod
     def setup(cls):
         if cls._struct is None:
+            if (not cls._is_meta and cls._meta is None):
+                cls._create_meta()
+                cls._meta.setup()
             cls._setup()
 
     @classmethod
@@ -387,6 +392,26 @@ class KindOfClass(object):
             name = 'new'
         setattr(cls, name, staticmethod(ctypes_meth)) # TODO: overloaded?
 
+    @classmethod
+    def _create_meta(cls):
+        """
+            Create the metaclass and store it.
+        """
+        if cls is cls._module.library.types.Object:
+            extends = cls._module.library.types.Class
+        elif cls is cls._module.library.types.Class:
+            extends = cls._module.library.types.Object._meta
+        elif cls._extends_:
+            extends = cls._extends_._meta
+        else:
+            extends = None
+        cls._meta = type(cls.__name__ + 'Class', (Class,), {
+            '_is_meta': True,
+            '_extends_': extends,
+            '_fields_': cls._static_fields_, # TODO: add function pointers
+        })
+        cls._meta.bind(cls._module)
+
 class Class(KindOfClass, ctypes.c_void_p):
     @property
     def contents(self):
@@ -399,13 +424,20 @@ class Class(KindOfClass, ctypes.c_void_p):
         if cls._fields_ is None:
             cls._fields_ = []
         # Super type?
-        super_type = cls._module.library.types.Object
-        if (cls._extends_ is not None and cls._extends_ != super_type):
+        if (cls._extends_ is not None and cls._extends_ != cls._module.library.types.Object):
             if not issubclass(cls._extends_, Class):
                 raise BindingError("%r is not a valid super-type for %r" % (cls._extends_, cls))
             cls.__bases__ = (cls._extends_,)
+            cls._extends_.setup()
             super_type = cls._extends_._struct
-        fields = [('__super__', super_type)]
+        else:
+            super_type = cls._module.library.types.Object._struct
+        if cls is cls._module.library.types.Object:
+            fields = []
+            anon = []
+        else:
+            fields = [('__super__', super_type)]
+            anon = ['__super__']
         # And now - members!
         cls._generic_members = []
         if cls._generic_types_ is None:
@@ -424,12 +456,13 @@ class Class(KindOfClass, ctypes.c_void_p):
             else:
                 fields.append((name, argtype))
         struct = type(ctypes.Structure)(cls.__name__ + 'Struct', (ctypes.Structure,), {
-            '_anonymous_': ['__super__'],
+            '_anonymous_': anon,
             '_fields_': fields,
         })
         cls._struct = struct
         # connect the ooc class to the python class
-        cls._module.library._add_class_type(cls.class_(), cls)
+        if not cls._is_meta:
+            cls._module.library._add_class_type(cls.class_(), cls)
 
 class Cover(KindOfClass):
     @classmethod

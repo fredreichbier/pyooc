@@ -1,6 +1,6 @@
 import ctypes
 
-from . import Cover, Module
+from . import Cover, Module, Class as _Class
 
 class Types(object):
     def __init__(self, lib):
@@ -92,31 +92,72 @@ class Types(object):
         self.SizeT = type("SizeT", (Cover, ctypes.c_size_t), {})
         self.SizeT.bind(types)
 
-        class Class(Cover, ctypes.Structure):
+        # METACLASS FUN
+        class ObjectClassStruct(ctypes.Structure):
             pass
 
-        self.Class = Class 
-        # TODO: we can't derive from ctypes.POINTER(ctypes.ClassStruct)
-        # - that is very sad :(
-        # Wait: `Class` is a struct. Not a pointer to a struct. What do I
-        # mean? OMGWTFBBQ?
-        Class._fields_ = [
-                ('class_', ctypes.POINTER(self.Class)),
-                ('instanceSize', self.SizeT),
-                ('size', self.SizeT),
-                ('name', self.String),
-                ('super', ctypes.POINTER(self.Class)),
-                ]
+        class ClassClassStruct(ctypes.Structure):
+            pass
+
+        class ObjectClass(_Class):
+            _is_meta = True
+            _struct = ObjectClassStruct
+
+        class ClassClass(_Class):
+            _is_meta = True
+            _struct = ClassClassStruct
 
         class ObjectStruct(ctypes.Structure):
-            # Well, for the `Yay` class, there is `YayClass`, but
-            # I think I'll just leave out that level of abstraction.
-            # So, let's say there's only a pointer to a class.
-            _fields_ = [
-                    ('class_', ctypes.POINTER(self.Class)),
-                ]
+            pass
 
-        self.Object = type("Object", (Cover, ctypes.POINTER(ObjectStruct)), {'_fields_': []})
-        self.Object.bind(types)
+        class ClassStruct(ctypes.Structure):
+            pass
 
+        class Object(_Class):
+            _meta = ObjectClass
+            _struct = ObjectStruct
+
+        self.Object = Object
+
+        class Class(_Class):
+            _meta = ClassClass
+            _struct = ClassStruct
+
+        self.Class = Class
+
+        ObjectClassStruct._fields_ = [
+            ('__super__', self.Class),
+            ('__defaults__', ctypes.CFUNCTYPE(None, Object)),
+            ('__destroy__', ctypes.CFUNCTYPE(None, Object)),
+            ('instanceOf', ctypes.CFUNCTYPE(self.Bool, Object, Class)),
+            ('__load__', ctypes.CFUNCTYPE(None)),
+        ]
+        ObjectClassStruct._anonymous_ = ['__super__']
+
+        ClassClassStruct._fields_ = [
+            ('__super__', ObjectClassStruct),
+            ('alloc__class', ctypes.CFUNCTYPE(Object, Class)),
+            ('inheritsFrom__class', ctypes.CFUNCTYPE(self.Bool, Class, Class)),
+        ]
+        ClassClassStruct._anonymous_ = ['__super__']
+
+        ObjectStruct._fields_ = [
+            ('class_', self.Class),
+        ]
+
+        ClassStruct._fields_ = [
+            ('__super__', Object),
+            ('instanceSize', self.SizeT),
+            ('size', self.SizeT),
+            ('name', self.String),
+            ('super', self.Class),
+        ]
+        Class._anonymous_ = ['__super__']
+
+        Object.bind(types)
+        Class.bind(types)
+
+    def setup(self):
+        self.Class.setup()
+        self.Object.setup()
 

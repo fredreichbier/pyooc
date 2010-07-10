@@ -1,5 +1,6 @@
 Greeter: class {
     msg: String
+    static1337: static Int = 1337
 
     init: func (=msg) {}
     greet: func {
