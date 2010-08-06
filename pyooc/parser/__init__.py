@@ -57,7 +57,7 @@ class GlobalVariable(Entity):
         self.extern = data['extern']
         if data['propertyData']:
             self.property_data = PropertyData()
-            self.properts_data.read(data['propertyData'])
+            self.property_data.read(data['propertyData'])
 
 class Field(GlobalVariable):
     pass

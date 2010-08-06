@@ -35,3 +35,12 @@ print test.yayx0r().value
 print test.someGlobalVariable.value
 test.someGlobalVariable.value = "<5"
 print test.someGlobalVariable.value
+
+print g.contents.mimi.value
+g.contents.mimi = 'HELLO WORLD'
+print g.contents.mimi.value
+
+print g.class_().contents.staticMimi.value
+g.class_().contents.staticMimi = 'HECK I\'M SO HAPPY'
+print g.class_().contents.staticMimi.value
+

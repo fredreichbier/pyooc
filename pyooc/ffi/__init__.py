@@ -461,6 +461,7 @@ class Class(KindOfClass, ctypes.c_void_p):
 
     @classmethod
     def _setup(cls):
+        dct = {}
         if cls._name_ is None:
             cls._name_ = cls.__name__
         if cls._fields_ is None:
@@ -488,14 +489,43 @@ class Class(KindOfClass, ctypes.c_void_p):
                     )
         # Do the ordinary fields. For the metaclass, these are the static fields
         # of the "real" class.
-        for name, argtype in cls._fields_[:]:
-            if argtype in cls._generictypes_:
-                fields.append(
-                    (name, ctypes.POINTER(cls._module.library.types.Octet))
-                    )
-                cls._generic_members.append((name, argtype))
+        for row in cls._fields_[:]:
+            if len(row) == 2:
+                # ordinary field.
+                name, argtype = row
+                if argtype in cls._generictypes_:
+                    fields.append(
+                        (name, ctypes.POINTER(cls._module.library.types.Octet))
+                        )
+                    cls._generic_members.append((name, argtype))
+                else:
+                    fields.append((name, argtype))
             else:
-                fields.append((name, argtype))
+                # property!
+                name, argtype, getter_name, setter_name = row
+                real_name = '_%s_' % name
+                getter = None
+                setter = None
+                if getter_name:
+                    getter = cls._module.library[getter_name]
+                    getter.restype = argtype
+                    if cls._is_meta: # they're static!
+                        getter.argtypes = []
+                        getter = lambda self, g=getter: g()
+                    else:
+                        getter.argtypes = [cls]
+                        # `X` should be `this`, not `XStruct`.
+                        getter = lambda self, g=getter: g(ctypes.byref(self))
+                if setter_name:
+                    setter = cls._module.library[setter_name]
+                    if cls._is_meta: # it's static.
+                        setter.argtypes = [argtype]
+                        setter = lambda self, value, s=setter: s(value)
+                    else:
+                        setter.argtypes = [ctypes.c_void_p, argtype]
+                        setter = lambda self, value, s=setter: s(ctypes.byref(self), value)
+                dct[name] = property(getter, setter)
+                fields.append((real_name, argtype))
         # In case we're a metaclass, add the function table.
         if cls._is_meta is not None:
             client = cls._is_meta # get the "real" class.
@@ -519,10 +549,11 @@ class Class(KindOfClass, ctypes.c_void_p):
                     # (ie. already in an ancestor's struct)
                     if not func.overrides:
                         fields.append((func.name, ctypes.CFUNCTYPE(None))) # TODO: be more specific. work around problems with generic types!
-        struct = type(ctypes.Structure)(cls.__name__ + 'Struct', (ctypes.Structure,), {
+        dct.update({
             '_anonymous_': anon,
             '_fields_': fields,
         })
+        struct = type(ctypes.Structure)(cls.__name__ + 'Struct', (ctypes.Structure,), dct)
         cls._struct = struct
         # connect the ooc class to the python class
         if not cls._is_meta:

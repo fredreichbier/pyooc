@@ -175,7 +175,14 @@ def bind_class(library, repo, parser_module, entity):
             if member.name in entity.generic_types:
                 # skip the T/U/V... members, they're added in _setup
                 continue
-            field = (member.name, var_type)
+            # Is it a property?
+            if member.property_data is not None:
+                field = (member.name,
+                         var_type,
+                         member.property_data.full_getter_name,
+                         member.property_data.full_setter_name)
+            else:
+                field = (member.name, var_type)
             if 'static' in member.modifiers:
                 static_fields.append(field)
             else:
