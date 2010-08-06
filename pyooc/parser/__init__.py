@@ -70,7 +70,9 @@ class Classlike(Entity):
             'method': self.read_method,
             'field': self.read_field,
         }
-        for name, entity in members:
+        for entry in members:
+            # TODO: PLEASE add versions support.
+            name, entity = entry[:2]
             dispatch[entity['type']](entity)
 
     def read_method(self, entity):
@@ -215,7 +217,9 @@ class Module(Entity):
             'interface': self.read_interface,
             'interfaceImpl': self.read_interface_impl,
         }
-        for tag, entity in entity['entities']:
+        for entry in entity['entities']:
+            # TODO: version support
+            tag, entity = entry[:2]
             type = entity['type']
             dispatch[type](entity)
 

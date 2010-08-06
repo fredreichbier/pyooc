@@ -75,7 +75,7 @@ def resolve_type(library, repo, parser_module, tag):
                 return getattr(library.types, tag)
             raise SorryError('Unknown type: %r' % tag)
 
-def llamaize_function(library, repo, parser_module, cls_entity, entity):
+def bind_function(library, repo, parser_module, cls_entity, entity):
     # arguments.
     arguments = []
     for arg in entity.arguments:
@@ -103,7 +103,7 @@ def llamaize_function(library, repo, parser_module, cls_entity, entity):
         'static': static,
     }
 
-def llamaize_class(library, repo, parser_module, entity):
+def bind_class(library, repo, parser_module, entity):
     """
         Works for classes and covers!
     """
@@ -115,24 +115,24 @@ def llamaize_class(library, repo, parser_module, entity):
     constructors = []
     for name, member in entity.members.iteritems():
         if isinstance(member, parser.Method):
-            # Yay method! llamaize it ...
-            llamaized = llamaize_function(library, repo, parser_module, entity, member)
+            # Yay method! bind it ...
+            bindd = bind_function(library, repo, parser_module, entity, member)
             if name in ('new', 'init') or name.startswith('new~') or name.startswith('init~'):
                 if '~' in name:
                     cname = name[name.index('~') + 1:]
                 else:
                     cname = ''
                 if not any(t[0] == cname for t in constructors):
-                    constructors.append((cname, llamaized['arguments']))
+                    constructors.append((cname, bindd['arguments']))
             else:
                 name = name.replace('~', '_')
-                info = (name, llamaized['return_type'], llamaized['arguments'])
-                if (llamaized['generic_types'] or llamaized['generic_return_type']):
-                    if llamaized['static']:
+                info = (name, bindd['return_type'], bindd['arguments'])
+                if (bindd['generic_types'] or bindd['generic_return_type']):
+                    if bindd['static']:
                         raise SorryError('sorry, no static generic methods yet. here is your crowbar')
-                    generic_methods.append((name, llamaized['generic_types'], llamaized['return_type'], llamaized['arguments']))
+                    generic_methods.append((name, bindd['generic_types'], bindd['return_type'], bindd['arguments']))
                 else:
-                    if llamaized['static']:
+                    if bindd['static']:
                         static_methods.append(info)
                     else:
                         methods.append(info)
@@ -170,11 +170,11 @@ def llamaize_class(library, repo, parser_module, entity):
         setattr(cls, n, i)
     cls.bind(module)
 
-def llamaize_class_minimal(library, repo, parser_module, entity):
+def bind_class_minimal(library, repo, parser_module, entity):
     cls = type(entity.name, (ffi.Class,), {})
     setattr(library.get_module(parser_module.path), entity.name, cls)
 
-def llamaize_cover_minimal(library, repo, parser_module, entity):
+def bind_cover_minimal(library, repo, parser_module, entity):
     if entity.from_:
         fromtype = resolve_c_type(library, repo, parser_module, entity.from_)
         cls = type(entity.name, (fromtype, ffi.Cover), {})
@@ -182,7 +182,7 @@ def llamaize_cover_minimal(library, repo, parser_module, entity):
         cls = type(entity.name, (ffi.Cover,), {})
     setattr(library.get_module(parser_module.path), entity.name, cls)
 
-def llamaize_module(library, repo, path):
+def bind_module(library, repo, path):
     """
         Return a :class:`pyooc.ffi.Module`.
     """
@@ -191,23 +191,23 @@ def llamaize_module(library, repo, path):
     # Do all deps minimally
     entity = repo.get_module(path)
     for import_path in entity.global_imports:
-        llamaize_module_minimal(library, repo, import_path)
+        bind_module_minimal(library, repo, import_path)
     # Do myself minimally.
-    llamaize_module_minimal(library, repo, path)
+    bind_module_minimal(library, repo, path)
     # Now do the real stuff.
     module = library.get_module(path)
     for name, member in entity.members.iteritems():
         if isinstance(member, (parser.Class, parser.Cover)):
-            llamaize_class(library, repo, entity, member)
+            bind_class(library, repo, entity, member)
 
-def llamaize_module_minimal(library, repo, path):
+def bind_module_minimal(library, repo, path):
     if path == 'lang/types':
         return
     entity = repo.get_module(path)
     module = library.get_module(path)
     for name, member in entity.members.iteritems():
         if isinstance(member, parser.Class):
-            llamaize_class_minimal(library, repo, entity, member)
+            bind_class_minimal(library, repo, entity, member)
         elif isinstance(member, parser.Cover):
-            llamaize_cover_minimal(library, repo, entity, member)
+            bind_cover_minimal(library, repo, entity, member)
 

@@ -1,12 +1,12 @@
 from pyooc.ffi import Library
 from pyooc.parser import Repository
-from pyooc.bind import llamaize_module
+from pyooc.bind import bind_module
 
 lib = Library('./libtest.so')
 
 repo = Repository('repo')
 
-llamaize_module(lib, repo, 'test')
+bind_module(lib, repo, 'test')
 test = lib.get_module('test')
 
 g = test.Greeter.new('Mr Banana')
