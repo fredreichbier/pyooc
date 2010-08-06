@@ -124,12 +124,14 @@ def bind_class(library, repo, parser_module, entity):
                 funcs.append(ffi.Func(name,
                     generictypes=bindd['generic_types'],
                     restype=bindd['return_type'],
-                    argtypes=bindd['arguments']))
+                    argtypes=bindd['arguments'],
+                    overrides=member.overrides))
             else:
                 funcs.append(ffi.Func(name,
                 restype=bindd['return_type'],
                 argtypes=bindd['arguments'],
-                static=bindd['static']))
+                static=bindd['static'],
+                overrides=member.overrides))
         elif isinstance(member, parser.Field):
             if member.type in entity.generic_types:
                 var_type = member.type

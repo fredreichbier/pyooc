@@ -5,6 +5,8 @@ try:
 except ImportError:
     import json
 
+from odict import odict
+
 class ModuleNotFound(Exception):
     pass
 
@@ -63,7 +65,20 @@ class Field(GlobalVariable):
 class Classlike(Entity):
     def __init__(self, parent):
         Entity.__init__(self, parent)
-        self.members = {}
+        self.members = odict()
+
+    @property
+    def ancestors(self):
+        ancestors = []
+        ancestor_name = self.extends
+        while ancestor_name:
+            ancestor = self.parent.resolve_type(ancestor_name)
+            ancestors.append(ancestor)
+            ancestor_name = ancestor.extends
+        return ancestors
+
+    def __repr__(self):
+        return '<%s object at 0x%x (%r)>' % (type(self).__name__, id(self), self.name)
 
     def read_members(self, members):
         dispatch = {
@@ -164,7 +179,10 @@ class Function(Entity):
             self.arguments.append(arg)
 
 class Method(Function):
-    pass
+    @property
+    def overrides(self):
+        # does any ancestor have a method like me? then i'm overriding it.
+        return any(self.name in ancestor.members for ancestor in self.parent.ancestors)
 
 class Operator(Entity):
     def __init__(self, parent):
@@ -191,15 +209,37 @@ class Interface(Classlike):
         self.read_members(data['members'])
 
 class Module(Entity):
-    def __init__(self):
-        Entity.__init__(self, None)
-        self.members = {}
+    def __init__(self, repo):
+        Entity.__init__(self, repo)
+        self.members = odict()
         self.operators = set()
         self.interface_impls = set()
         self.path = None
         self.global_imports = None
         self.namespaced_imports = None
         self.uses = None
+
+    def resolve_type(self, tag, seen=None):
+        """
+            *tag*: A tag, unmodified.
+        """
+        if seen is None:
+            seen = set()
+        # TODO: namespaced imports
+        if tag in self.members:
+            return self.members[tag]
+        else:
+            # look through global imports.
+            for global_import in self.global_imports:
+                imported_module = self.parent.get_module(global_import)
+                if imported_module not in seen:
+                    seen.add(imported_module)
+                    try:
+                        return imported_module.resolve_type(tag, seen)
+                    except ValueError:
+                        continue
+            # No? Erroooooooooooor!
+            raise ValueError(tag)
 
     def read(self, entity):
         # read the global information
@@ -309,7 +349,7 @@ class Repository(object):
         filename = self.get_module_filename(module)
         with open(filename, 'r') as f:
             data = json.load(f)
-        entity = Module()
+        entity = Module(self)
         entity.read(data)
         return entity
 

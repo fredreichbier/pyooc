@@ -127,26 +127,6 @@ class Types(object):
 
         self.Class = Class
 
-        ObjectClassStruct._fields_ = [
-            ('__super__', self.Class),
-            ('__defaults__', ctypes.CFUNCTYPE(None, Object)),
-            ('__destroy__', ctypes.CFUNCTYPE(None, Object)),
-            ('instanceOf', ctypes.CFUNCTYPE(self.Bool, Object, Class)),
-            ('__load__', ctypes.CFUNCTYPE(None)),
-        ]
-        ObjectClassStruct._anonymous_ = ['__super__']
-
-        ClassClassStruct._fields_ = [
-            ('__super__', ObjectClassStruct),
-            ('alloc__class', ctypes.CFUNCTYPE(Object, Class)),
-            ('inheritsFrom__class', ctypes.CFUNCTYPE(self.Bool, Class, Class)),
-        ]
-        ClassClassStruct._anonymous_ = ['__super__']
-
-        ObjectStruct._fields_ = [
-            ('class_', self.Class),
-        ]
-
         ClassStruct._fields_ = [
             ('__super__', Object),
             ('instanceSize', self.SizeT),
@@ -154,7 +134,27 @@ class Types(object):
             ('name', self.String),
             ('super', self.Class),
         ]
-        Class._anonymous_ = ['__super__']
+        ClassStruct._anonymous_ = ['__super__']
+
+        ObjectClassStruct._fields_ = [
+            ('__super__', ClassStruct),
+            ('__defaults__', ctypes.CFUNCTYPE(None, Object)),
+            ('__destroy__', ctypes.CFUNCTYPE(None, Object)),
+            ('instanceOf__quest', ctypes.CFUNCTYPE(self.Bool, Object, Class)),
+            ('__load__', ctypes.CFUNCTYPE(None)),
+        ]
+        ObjectClassStruct._anonymous_ = ['__super__']
+
+        ClassClassStruct._fields_ = [
+            ('__super__', ObjectClassStruct),
+            ('alloc__class', ctypes.CFUNCTYPE(Object, Class)),
+            ('inheritsFrom__quest__class', ctypes.CFUNCTYPE(self.Bool, Class, Class)),
+        ]
+        ClassClassStruct._anonymous_ = ['__super__']
+
+        ObjectStruct._fields_ = [
+            ('class_', self.Class),
+        ]
 
         Object.bind(types, False)
         Class.bind(types, False)

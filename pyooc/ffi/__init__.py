@@ -40,7 +40,8 @@ class Func(object):
             restype=None,
             argtypes=None,
             generictypes=None,
-            static=False):
+            static=False,
+            overrides=False):
         name = name.replace('~', '_')
         if argtypes:
             argtypes = []
@@ -49,6 +50,7 @@ class Func(object):
         self.argtypes = argtypes
         self.generictypes = generictypes
         self.static = static
+        self.overrides = overrides
 
 # Hey, we've got to load libgc!
 GC = ctypes.CDLL(ctypes.util.find_library('gc'), ctypes.RTLD_GLOBAL)
@@ -365,6 +367,9 @@ class KindOfClass(object):
             extends = cls._module.library.types.Class
         elif cls is cls._module.library.types.Class:
             extends = cls._module.library.types.Object._meta
+        elif cls._extends_ is cls._module.library.types.Object:
+            # Object's direct descendants' metaclasses extend `ClassClass`.
+            extends = cls._module.library.types.Class._meta
         elif cls._extends_:
             extends = cls._extends_._meta
         else:
@@ -457,8 +462,10 @@ class Class(KindOfClass, ctypes.c_void_p):
                                                        func.restype, func.argtypes)
                         else:
                             client._add_method(func.name, func.restype, func.argtypes)
-                    # ... and now to the ctypes struct.
-                    fields.append((func.name, ctypes.CFUNCTYPE(None))) # TODO: be more specific. work around problems with generic types!
+                    # ... and now to the ctypes struct -- if it's not an overriding method.
+                    # (ie. already in an ancestor's struct)
+                    if not func.overrides:
+                        fields.append((func.name, ctypes.CFUNCTYPE(None))) # TODO: be more specific. work around problems with generic types!
         struct = type(ctypes.Structure)(cls.__name__ + 'Struct', (ctypes.Structure,), {
             '_anonymous_': anon,
             '_fields_': fields,
