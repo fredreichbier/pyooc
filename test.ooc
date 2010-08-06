@@ -16,6 +16,14 @@ BetterGreeter: class extends Greeter {
         "Hello %s (%d)!" format(msg, count) println()
     }
 
+    gimme: func (a, b, c: String) -> (Int, Int) {
+        (count, anotherStatic666)
+    }
+
+    gimmeGeneric: func <T> (v: T) -> (T, T) {
+        (v, v)
+    }
+
     init: func ~better (=msg, =count) { super(msg) }
 }
 
@@ -24,6 +32,18 @@ AnotherCell: class <T> {
 
     getValue: func -> T { value }
     setValue: func (=value) {}
+
+    getSomeStuff: func -> (T, T) {
+        (value, value)
+    }
+
+    fooBar: func <U> (u: U) -> (U) {
+        (U)
+    }
+    
+    moo: func <U> -> (Int, U, Int) {
+        (1, U, 3)
+    }
 
     init: func (=value) {}
 }

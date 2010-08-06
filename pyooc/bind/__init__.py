@@ -58,7 +58,7 @@ def resolve_type(library, repo, parser_module, tag):
         mod, args = parse_tag(tag)
         if mod in ('pointer', 'reference'):
             # pointer and reference have the same handling
-            return ctypes.POINTER(resolve_type(module, args[0]))
+            return ctypes.POINTER(resolve_type(library, repo, parser_module, args[0]))
         else:
             raise SorryError('Unknown tag: %r' % tag)
     else:
@@ -95,6 +95,15 @@ def bind_function(library, repo, parser_module, cls_entity, entity):
     # return type.
     if entity.return_type is None:
         return_type = None
+    elif entity.return_type.startswith('multi('):
+        # multi-return ...
+        return_type = []
+        for rtype in parse_tag(entity.return_type)[1]:
+            if (rtype in entity.generic_types or rtype in cls_entity.generic_types):
+                return_type.append(rtype)
+            else:
+                return_type.append(resolve_type(library, repo, parser_module, rtype))
+        return_type = tuple(return_type)
     elif (entity.return_type in entity.generic_types or entity.return_type in cls_entity.generic_types):
         return_type = entity.return_type
     else:

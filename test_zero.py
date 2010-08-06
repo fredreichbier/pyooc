@@ -19,3 +19,5 @@ print b.contents.count.value
 
 print g.class_().contents.static1337.value
 print b.class_().contents.anotherStatic666.value
+
+print tuple(i.value for i in b.gimmeGeneric(123, restype0=lib.types.Int, restype1=lib.types.Int))

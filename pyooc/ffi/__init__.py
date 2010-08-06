@@ -43,7 +43,7 @@ class Func(object):
             static=False,
             overrides=False):
         name = name.replace('~', '_')
-        if argtypes:
+        if argtypes is None:
             argtypes = []
         self.name = name
         self.restype = restype
@@ -149,12 +149,23 @@ class Module(object):
         return method
 
     def generic_function(self, name, generictypes, restype, argtypes=(), method=False, additional_generictypes=()):
+        """
+            Create a wrapper for a generic function. That can also be used for non-generic
+            or generic multi-return functions. Didn't want too much code duplication, you know.
+        """
+        multi_return = isinstance(restype, tuple)
         # `additional_generictypes` are generic typenames that don't get passed.
         if argtypes is None:
             argtypes = []
         # is the return value a generic type? if yes, the
         # ooc-generated function looks a bit different :)
-        return_generic = (restype in generictypes or restype in additional_generictypes)
+        if not multi_return:
+            return_generic = (restype in generictypes or restype in additional_generictypes)
+            multi_return_generic = False
+        else:
+            # For multi-return functions, this is always False.
+            return_generic = False
+            multi_return_generic = True
         # get the method
         func = self[name]
         # now construct the argument list.
@@ -162,14 +173,21 @@ class Module(object):
         # if it's a method, the this pointer is the very first argument.
         if method:
             pass_argtypes.append(ctypes.c_void_p)
+        # if it's a multi-return function, now we get pointers to the return values.
+        if multi_return:
+            for argtype in restype:
+                if (argtype in generictypes or argtype in additional_generictypes):
+                    pass_argtypes.append(ctypes.POINTER(ctypes.POINTER(self.library.types.Octet)))
+                else:
+                    pass_argtypes.append(ctypes.POINTER(argtype))
         # if the return value is a generic, the first argument will
         # be a pointer to the return value
         if return_generic:
             pass_argtypes.append(ctypes.c_void_p)
         # ooc's generic functions take the classes of the template
-        # types as first arguments.
+        # types as first arguments. Say it's void* for simplicity.
         for _ in generictypes:
-            pass_argtypes.append(ctypes.POINTER(self.library.types.Class))
+            pass_argtypes.append(ctypes.c_void_p)
         # then all arguments follow
         for argtype in argtypes:
             # a templated argtype will be a pointer to a value.
@@ -177,10 +195,12 @@ class Module(object):
                 pass_argtypes.append(ctypes.POINTER(self.library.types.Octet))
             else:
                 pass_argtypes.append(argtype)
+        print name, pass_argtypes
         # yep, it's ready.
         func.argtypes = pass_argtypes
-        # functions with generic return values don't have a return value in C
-        if not return_generic:
+        # functions with generic return values don't have a return value in C,
+        # same for multi-return functions.
+        if not (return_generic or multi_return):
             func.restype = restype
         # Now, we'll construct a function. It's not very nice,
         # I'd rather like to generate code, but that would
@@ -192,8 +212,32 @@ class Module(object):
             if method:
                 pass_args.append(args[0])
                 args = args[1:]
-            # if the return value is generic, the user has to
-            # pass the type explicitly.
+            if multi_return:
+                multi_return_values = []
+                # Multiple, partly generic return types.
+                for ridx, rtype in enumerate(restype):
+                    if (rtype in generictypes or rtype in additional_generictypes):
+                        # Generic, yes.
+                        if (method and rtype in additional_generictypes):
+                            # See above.
+                            restype_ = getattr(pass_args[0].contents, restype)
+                            result = self.library._get_class_type(restype_)()
+                        else:
+                            restype_ = kwargs.pop('restype%d' % ridx)
+                            assert restype_ # TODO: COOL error
+                            result = restype_()
+                        pass_args.append(ctypes.cast(
+                            ctypes.pointer(ctypes.pointer(result)),
+                            ctypes.POINTER(ctypes.POINTER(self.library.types.Octet))
+                            ))
+                        multi_return_values.append(result)
+                    else:
+                        # Ordinary.
+                        result = rtype()
+                        pass_args.append(ctypes.pointer(result))
+                        multi_return_values.append(result)
+                assert not kwargs
+            # if the return value is generic or, the user has to pass the type explicitly.
             if return_generic:
                 if (method and restype in additional_generictypes):
                     # Yay generic type restype AND a method AND class-wide
@@ -234,6 +278,9 @@ class Module(object):
             if return_generic:
                 func(*pass_args)
                 return result
+            elif multi_return:
+                func(*pass_args)
+                return tuple(multi_return_values)
             else:
                 return func(*pass_args)
         return function
@@ -323,8 +370,8 @@ class KindOfClass(object):
         name = cls._get_name(name)
         func = cls._module[name]
         if restype is not None:
-            if restype in cls._generictypes_:
-                # ggggeneric function!
+            if (restype in cls._generictypes_ or isinstance(restype, tuple)):
+                # Generic or multi-return function.
                 return cls._module.generic_function(name, (), restype, argtypes, True, cls._generictypes_)
             else:
                 func.restype = restype
@@ -345,8 +392,8 @@ class KindOfClass(object):
         name = cls._get_name(name)
         func = cls._module[name]
         if restype is not None:
-            if restype in cls._generictypes_:
-                # ggggeneric function!
+            if (restype in cls._generictypes_ or isinstance(restype, tuple)):
+                # Generic or multi-return function.
                 return cls._module.generic_function(name, (), restype, argtypes, False, cls._generictypes_)
             else:
                 func.restype = restype
