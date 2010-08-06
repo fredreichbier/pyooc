@@ -447,7 +447,6 @@ class Class(KindOfClass, ctypes.c_void_p):
             client = cls._is_meta # get the "real" class.
             # All functions, if static, constructors or ordinary, are
             # just added in the order they were defined.
-            # TODO: __defaults__ and __load__ must not be re-added for every class.
             if client._methods_:
                 for func in client._methods_:
                     # Let's add it to the Python class ...

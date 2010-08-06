@@ -45,8 +45,12 @@ def resolve_c_type(library, repo, parser_module, typename):
     elif typename.endswith('*'):
         return ctypes.POINTER(resolve_c_type(library, repo, parser_module, typename[:-1]))
     else:
-        print 'Unknown type: %r' % typename
-        return ctypes.c_void_p
+        # maybe it's a ooc type.
+        try:
+            return resolve_type(library, repo, parser_module, typename)
+        except SorryError:
+            print 'Unknown type: %r' % typename
+            return ctypes.c_void_p
 
 def resolve_type(library, repo, parser_module, tag):
     if '(' in tag:
