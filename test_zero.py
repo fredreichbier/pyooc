@@ -31,3 +31,7 @@ s = cell.moo(lib.types.String.class_(), restype1=lib.types.String)[1]
 print s.value
 
 print test.yayx0r().value
+
+print test.someGlobalVariable.value
+test.someGlobalVariable.value = "<5"
+print test.someGlobalVariable.value

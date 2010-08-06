@@ -59,4 +59,6 @@ yayx0r: func -> String {
     ":-)"
 }
 
+someGlobalVariable: String = "<3"
+
 "Hell yeah! I was called! %d %d" format(Greeter static1337, BetterGreeter anotherStatic666) println()

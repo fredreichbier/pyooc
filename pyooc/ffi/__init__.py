@@ -148,6 +148,9 @@ class Module(object):
             setattr(argtypes[0], py_special_name, method)
         return method
 
+    def global_variable(self, name, type):
+        return type.in_dll(self.library, self.member_prefix + name)
+
     def generic_function(self, name, generictypes, restype, argtypes=(), method=False, additional_generictypes=()):
         """
             Create a wrapper for a generic function. That can also be used for non-generic

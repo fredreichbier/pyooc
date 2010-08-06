@@ -138,6 +138,11 @@ def bind_function(library, repo, parser_module, entity):
         wrapper.argtypes = analyzed['arguments']
     setattr(module, analyzed['name'], wrapper)
 
+def bind_global_variable(library, repo, parser_module, entity):
+    module = library.get_module(parser_module.path)
+    var_type = resolve_type(library, repo, parser_module, entity.type)
+    setattr(module, entity.name, module.global_variable(entity.name, var_type))
+
 def bind_class(library, repo, parser_module, entity):
     """
         Works for classes and covers!
@@ -224,6 +229,8 @@ def bind_module(library, repo, path):
             bind_class(library, repo, entity, member)
         elif isinstance(member, parser.Function):
             bind_function(library, repo, entity, member)
+        elif isinstance(member, parser.GlobalVariable):
+            bind_global_variable(library, repo, entity, member)
         else:
             print 'Ignoring member: %s (%r)' % (name, member)
 
