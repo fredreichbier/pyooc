@@ -175,11 +175,11 @@ class Module(object):
             pass_argtypes.append(ctypes.c_void_p)
         # if it's a multi-return function, now we get pointers to the return values.
         if multi_return:
-            for argtype in restype:
-                if (argtype in generictypes or argtype in additional_generictypes):
+            for rtype in restype:
+                if (rtype in generictypes or rtype in additional_generictypes):
                     pass_argtypes.append(ctypes.POINTER(ctypes.POINTER(self.library.types.Octet)))
                 else:
-                    pass_argtypes.append(ctypes.POINTER(argtype))
+                    pass_argtypes.append(ctypes.POINTER(rtype))
         # if the return value is a generic, the first argument will
         # be a pointer to the return value
         if return_generic:
@@ -193,9 +193,11 @@ class Module(object):
             # a templated argtype will be a pointer to a value.
             if (argtype in generictypes or argtype in additional_generictypes):
                 pass_argtypes.append(ctypes.POINTER(self.library.types.Octet))
+            elif argtype == self.library.types.Class:
+                # special-case class to make ctypes accept `pyooc.ffi.Class`. TODO?
+                pass_argtypes.append(Class)
             else:
                 pass_argtypes.append(argtype)
-        print name, pass_argtypes
         # yep, it's ready.
         func.argtypes = pass_argtypes
         # functions with generic return values don't have a return value in C,
@@ -212,6 +214,7 @@ class Module(object):
             if method:
                 pass_args.append(args[0])
                 args = args[1:]
+            generictypes_types = {}
             if multi_return:
                 multi_return_values = []
                 # Multiple, partly generic return types.
@@ -220,39 +223,42 @@ class Module(object):
                         # Generic, yes.
                         if (method and rtype in additional_generictypes):
                             # See above.
-                            restype_ = getattr(pass_args[0].contents, restype)
+                            restype_ = getattr(pass_args[0].contents, rtype)
                             result = self.library._get_class_type(restype_)()
                         else:
                             restype_ = kwargs.pop('restype%d' % ridx)
                             assert restype_ # TODO: COOL error
                             result = restype_()
+                            if rtype not in generictypes_types:
+                                generictypes_types[rtype] = restype_.class_()
                         pass_args.append(ctypes.cast(
                             ctypes.pointer(ctypes.pointer(result)),
                             ctypes.POINTER(ctypes.POINTER(self.library.types.Octet))
                             ))
-                        multi_return_values.append(result)
                     else:
                         # Ordinary.
                         result = rtype()
                         pass_args.append(ctypes.pointer(result))
-                        multi_return_values.append(result)
+                    multi_return_values.append(result)
                 assert not kwargs
             # if the return value is generic or, the user has to pass the type explicitly.
             if return_generic:
+                restype_ = None
                 if (method and restype in additional_generictypes):
                     # Yay generic type restype AND a method AND class-wide
                     # generic type. TODO: BAH EVILNESS
                     restype_ = getattr(pass_args[0].contents, restype)
                     # allocate some memory for dinner
                     result = self.library._get_class_type(restype_)()
-                    pass_args.append(ctypes.pointer(result))
                 else:
                     restype_ = kwargs.pop('restype')
                     assert not kwargs
                     assert restype_ # TODO: nice error
                     result = restype_()
-                    pass_args.append(ctypes.pointer(result))
-            generictypes_types = {}
+                    # TODO: Since we have to pass the result type anyway, we could work around
+                    # the rock limitation that you have to pass the class explicitly if you have
+                    # a function with a generic return value (ie. `a: func <T> (T: Class) -> T`). Hmmm?
+                pass_args.append(ctypes.pointer(result))
             regular_args = []
             for argtype, arg in zip(argtypes, args):
                 # is it generic?
@@ -328,20 +334,6 @@ class KindOfClass(object):
             basename = cls.__name__
         return '_'.join((basename, name))
 
-    @classmethod
-    def _constructor(cls, suffix='', argtypes=None):
-        """
-            Here, we have to pass the generic types in the arguments.
-        """
-        if suffix:
-            name = 'new_' + suffix
-        else:
-            name = 'new'
-        type_argtypes = [ctypes.POINTER(cls._module.library.types.Class) for _ in cls._generictypes_]
-        if argtypes is None:
-            argtypes = []
-        return cls._static_method(name, cls, type_argtypes + argtypes)
-
     def get_generic_member(self, name):
         """
             Return the value of the generic member *name*, correctly typed.
@@ -362,6 +354,13 @@ class KindOfClass(object):
         #argtypes = [ctypes.POINTER(None)] + argtypes
         return cls._module.generic_function(name, generictypes, restype, argtypes,
                                             True, cls._generictypes_)
+    @classmethod
+    def _generic_static_method(cls, name, generictypes, restype=None, argtypes=None):
+        if cls._module is None:
+            raise BindingError("You have to bind the class to a library!")
+        name = cls._get_name(name)
+        return cls._module.generic_function(name, generictypes, restype, argtypes,
+                                            False, cls._generictypes_)
 
     @classmethod
     def _method(cls, name, restype=None, argtypes=None):
@@ -414,7 +413,7 @@ class KindOfClass(object):
             extends = cls._module.library.types.Class
         elif cls is cls._module.library.types.Class:
             extends = cls._module.library.types.Object._meta
-        elif cls._extends_ is cls._module.library.types.Object:
+        elif cls._extends_ in (cls._module.library.types.Object, None):
             # Object's direct descendants' metaclasses extend `ClassClass`.
             extends = cls._module.library.types.Class._meta
         elif cls._extends_:
@@ -441,6 +440,11 @@ class KindOfClass(object):
         def method(self, *args, **kwargs):
             return ctypes_meth(self, *args, **kwargs)
         setattr(cls, name, method)
+
+    @classmethod
+    def _add_generic_static_method(cls, name, generic_types, *args, **kwargs):
+        ctypes_meth = cls._generic_static_method(name, generic_types, *args, **kwargs)
+        setattr(cls, name, staticmethod(ctypes_meth))
 
     @classmethod
     def _add_static_method(cls, name, *args, **kwargs):
@@ -477,7 +481,7 @@ class Class(KindOfClass, ctypes.c_void_p):
         # add the Class pointers. They are done in the reverse order.
         for typename in cls._generictypes_[::-1]:
             fields.append(
-                    (typename, ctypes.POINTER(cls._module.library.types.Class))
+                    (typename, cls._module.library.types.Class)
                     )
         # Do the ordinary fields. For the metaclass, these are the static fields
         # of the "real" class.
@@ -499,7 +503,7 @@ class Class(KindOfClass, ctypes.c_void_p):
                     # Let's add it to the Python class ...
                     if func.static:
                         if func.generictypes:
-                            raise NotImplementedError('No generic static functions yet. Go punch me, I\'ll probably do them then!')
+                            client._add_generic_static_method(func.name, func.generictypes, func.restype, func.argtypes)
                         else:
                             client._add_static_method(func.name, func.restype, func.argtypes)
                     else:

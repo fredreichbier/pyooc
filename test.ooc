@@ -6,6 +6,10 @@ Greeter: class {
     greet: func {
         "Hello %s!" format(msg) println()
     }
+
+    helloWorld: func <T> (v: T) {
+        T name println()
+    }
 }
 
 BetterGreeter: class extends Greeter {
@@ -41,11 +45,18 @@ AnotherCell: class <T> {
         (U)
     }
     
-    moo: func <U> -> (Int, U, Int) {
-        (1, U, 3)
+    moo: func <U> (U: Class) -> (Int, U, Int) {
+        U name println()
+        (1, "Urgh", 3)
     }
 
     init: func (=value) {}
+
+}
+
+yayx0r: func -> String {
+    "yayX0R" println()
+    ":-)"
 }
 
 "Hell yeah! I was called! %d %d" format(Greeter static1337, BetterGreeter anotherStatic666) println()

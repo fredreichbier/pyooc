@@ -83,11 +83,11 @@ def resolve_type(library, repo, parser_module, tag):
                     return getattr(library.get_module(import_path), tag)
             raise SorryError('Unknown type: %r' % tag)
 
-def bind_function(library, repo, parser_module, cls_entity, entity):
+def analyze_function(library, repo, parser_module, cls_entity, entity):
     # arguments.
     arguments = []
     for arg in entity.arguments:
-        if (arg.tag in entity.generic_types or arg.tag in cls_entity.generic_types):
+        if (arg.tag in entity.generic_types or (cls_entity and arg.tag in cls_entity.generic_types)):
             # generic.
             arguments.append(arg.tag)
         else:
@@ -99,12 +99,12 @@ def bind_function(library, repo, parser_module, cls_entity, entity):
         # multi-return ...
         return_type = []
         for rtype in parse_tag(entity.return_type)[1]:
-            if (rtype in entity.generic_types or rtype in cls_entity.generic_types):
+            if (rtype in entity.generic_types or (cls_entity and rtype in cls_entity.generic_types)):
                 return_type.append(rtype)
             else:
                 return_type.append(resolve_type(library, repo, parser_module, rtype))
         return_type = tuple(return_type)
-    elif (entity.return_type in entity.generic_types or entity.return_type in cls_entity.generic_types):
+    elif (entity.return_type in entity.generic_types or (cls_entity and entity.return_type in cls_entity.generic_types)):
         return_type = entity.return_type
     else:
         return_type = resolve_type(library, repo, parser_module, entity.return_type)
@@ -120,6 +120,24 @@ def bind_function(library, repo, parser_module, cls_entity, entity):
         'static': static,
     }
 
+def bind_function(library, repo, parser_module, entity):
+    module = library.get_module(parser_module.path)
+    analyzed = analyze_function(library, repo, parser_module, None, entity)
+    if (analyzed['generic_types'] or isinstance(analyzed['return_type'], tuple)):
+        # Is generic or is multi-value return. Use `generic_function`.
+        wrapper = module.generic_function(
+            analyzed['name'],
+            analyzed['generic_types'],
+            analyzed['return_type'],
+            analyzed['arguments'],
+        )
+    else:
+        # Anything else - just a normal function.
+        wrapper = module[analyzed['name']]
+        wrapper.restype = analyzed['return_type']
+        wrapper.argtypes = analyzed['arguments']
+    setattr(module, analyzed['name'], wrapper)
+
 def bind_class(library, repo, parser_module, entity):
     """
         Works for classes and covers!
@@ -130,20 +148,19 @@ def bind_class(library, repo, parser_module, entity):
     for name, member in entity.members.iteritems():
         if isinstance(member, parser.Method):
             # Yay method! bind it ...
-            bindd = bind_function(library, repo, parser_module, entity, member)
-            if (bindd['generic_types'] or bindd['generic_return_type']):
-                if bindd['static']:
-                    print '%r: sorry, no static generic methods yet. here is your crowbar' % bindd['name']
+            analyzed = analyze_function(library, repo, parser_module, entity, member)
+            if (analyzed['generic_types'] or analyzed['generic_return_type']):
                 funcs.append(ffi.Func(name,
-                    generictypes=bindd['generic_types'],
-                    restype=bindd['return_type'],
-                    argtypes=bindd['arguments'],
-                    overrides=member.overrides))
+                    generictypes=analyzed['generic_types'],
+                    restype=analyzed['return_type'],
+                    argtypes=analyzed['arguments'],
+                    overrides=member.overrides,
+                    static=analyzed['static']))
             else:
                 funcs.append(ffi.Func(name,
-                restype=bindd['return_type'],
-                argtypes=bindd['arguments'],
-                static=bindd['static'],
+                restype=analyzed['return_type'],
+                argtypes=analyzed['arguments'],
+                static=analyzed['static'],
                 overrides=member.overrides))
         elif isinstance(member, parser.Field):
             if member.type in entity.generic_types:
@@ -205,6 +222,10 @@ def bind_module(library, repo, path):
     for name, member in entity.members.iteritems():
         if isinstance(member, (parser.Class, parser.Cover)):
             bind_class(library, repo, entity, member)
+        elif isinstance(member, parser.Function):
+            bind_function(library, repo, entity, member)
+        else:
+            print 'Ignoring member: %s (%r)' % (name, member)
 
 def bind_module_minimal(library, repo, path):
     if path == 'lang/types':
