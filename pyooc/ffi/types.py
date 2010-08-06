@@ -1,96 +1,98 @@
 import ctypes
 
-from . import Cover, Module, Class as _Class
+from . import Cover, Module, Class as _Class, KindOfClass
 
 class Types(object):
     def __init__(self, lib):
         types = Module(lib, 'lang/types')
+        numbers = Module(lib, 'lang/Numbers')
+        string = Module(lib, 'lang/String')
 
         self.Char = type("Char", (Cover, ctypes.c_char), {})
-        self.Char.bind(types)
+        self.Char.bind(string, False)
 
         self.UChar = type("UChar", (Cover, ctypes.c_ubyte), {})
-        self.UChar.bind(types)
+        self.UChar.bind(string, False)
 
         self.WChar = type("WChar", (Cover, ctypes.c_wchar), {})
-        self.WChar.bind(types)
+        self.WChar.bind(string, False)
 
         self.String = type("String", (Cover, ctypes.c_char_p), {})
-        self.String.bind(types)
+        self.String.bind(string, False)
 
         self.Pointer = type("Pointer", (Cover, ctypes.c_void_p), {})
-        self.Pointer.bind(types)
+        self.Pointer.bind(types, False)
 
         self.Int = type("Int", (Cover, ctypes.c_int), {})
-        self.Int.bind(types)
+        self.Int.bind(numbers, False)
 
         self.UInt = type("UInt", (Cover, ctypes.c_uint), {})
-        self.UInt.bind(types)
+        self.UInt.bind(numbers, False)
 
         self.Short = type("Short", (Cover, ctypes.c_short), {})
-        self.Short.bind(types)
+        self.Short.bind(numbers, False)
 
         self.UShort = type("UShort", (Cover, ctypes.c_ushort), {})
-        self.UShort.bind(types)
+        self.UShort.bind(numbers, False)
 
         self.Long = type("Long", (Cover, ctypes.c_long), {})
-        self.Long.bind(types)
+        self.Long.bind(numbers, False)
 
         self.ULong = type("ULong", (Cover, ctypes.c_ulong), {})
-        self.ULong.bind(types)
+        self.ULong.bind(numbers, False)
 
         self.LLong = type("LLong", (Cover, ctypes.c_longlong), {})
-        self.LLong.bind(types)
+        self.LLong.bind(numbers, False)
 
         self.ULLong = type("ULLong", (Cover, ctypes.c_ulonglong), {})
-        self.ULLong.bind(types)
+        self.ULLong.bind(numbers, False)
 
         self.Float = type("Float", (Cover, ctypes.c_float), {})
-        self.Float.bind(types)
+        self.Float.bind(numbers, False)
 
         self.Double = type("Double", (Cover, ctypes.c_double), {})
-        self.Double.bind(types)
+        self.Double.bind(numbers, False)
 
         self.LDouble = type("LDouble", (Cover, ctypes.c_longdouble), {})
-        self.LDouble.bind(types)
+        self.LDouble.bind(numbers, False)
 
         self.Int8 = type("Int8", (Cover, ctypes.c_int8), {})
-        self.Int8.bind(types)
+        self.Int8.bind(numbers, False)
 
         self.Int16 = type("Int16", (Cover, ctypes.c_int16), {})
-        self.Int16.bind(types)
+        self.Int16.bind(numbers, False)
 
         self.Int32 = type("Int32", (Cover, ctypes.c_int32), {})
-        self.Int32.bind(types)
+        self.Int32.bind(numbers, False)
 
         self.Int64 = type("Int64", (Cover, ctypes.c_int64), {})
-        self.Int64.bind(types)
+        self.Int64.bind(numbers, False)
 
         self.UInt8 = type("UInt8", (Cover, ctypes.c_uint8), {})
-        self.UInt8.bind(types)
+        self.UInt8.bind(numbers, False)
 
         self.UInt16 = type("UInt16", (Cover, ctypes.c_uint16), {})
-        self.UInt16.bind(types)
+        self.UInt16.bind(numbers, False)
 
         self.UInt32 = type("UInt32", (Cover, ctypes.c_uint32), {})
-        self.UInt32.bind(types)
+        self.UInt32.bind(numbers, False)
 
         self.UInt64 = type("UInt64", (Cover, ctypes.c_uint64), {})
-        self.UInt64.bind(types)
+        self.UInt64.bind(numbers, False)
 
         self.Octet = type("Octet", (Cover, ctypes.c_uint8), {})
-        self.Octet.bind(types)
+        self.Octet.bind(numbers, False)
 
         #self.Void = type("Void", (Cover, None), {})
-        #self.Void.bind(types)
+        #self.Void.bind(types, False)
         # Hey Mr Void, I'm very sorry, but you are no cover.
         self.Void = None
 
         self.Bool = type("Bool", (Cover, ctypes.c_bool), {})
-        self.Bool.bind(types)
+        self.Bool.bind(types, False)
 
         self.SizeT = type("SizeT", (Cover, ctypes.c_size_t), {})
-        self.SizeT.bind(types)
+        self.SizeT.bind(numbers, False)
 
         # METACLASS FUN
         class ObjectClassStruct(ctypes.Structure):
@@ -154,10 +156,16 @@ class Types(object):
         ]
         Class._anonymous_ = ['__super__']
 
-        Object.bind(types)
-        Class.bind(types)
+        Object.bind(types, False)
+        Class.bind(types, False)
 
     def setup(self):
         self.Class.setup()
         self.Object.setup()
-
+        for prop in self.__dict__.itervalues():
+            try:
+                if (issubclass(prop, KindOfClass)
+                    and prop not in (self.Class, self.Object)):
+                    prop.setup()
+            except TypeError:
+                pass

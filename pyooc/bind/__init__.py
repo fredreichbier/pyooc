@@ -66,13 +66,17 @@ def resolve_type(library, repo, parser_module, tag):
             return getattr(module, tag)
         else:
             # nay.
+            # types? Since lang/* modules are imported automatically anyway,
+            # it's no problem to look through them before looking through
+            # explicitly imported modules. Right? (TODO)
+            # The other way round, it will cause problems because we'd have
+            # `String` defined multiple times. TODO anyway.
+            if hasattr(library.types, tag):
+                return getattr(library.types, tag)
             # TODO: namespaced imports
-            # types?
             for import_path in parser_module.global_imports:
                 if hasattr(library.get_module(import_path), tag):
                     return getattr(library.get_module(import_path), tag)
-            if hasattr(library.types, tag):
-                return getattr(library.types, tag)
             raise SorryError('Unknown type: %r' % tag)
 
 def bind_function(library, repo, parser_module, cls_entity, entity):
@@ -93,7 +97,7 @@ def bind_function(library, repo, parser_module, cls_entity, entity):
         return_type = resolve_type(library, repo, parser_module, entity.return_type)
     # modifiers.
     # well, i think only `static` has any effect here. right?
-    static = 'extern' in entity.modifiers
+    static = 'static' in entity.modifiers
     return {
         'name': entity.name,
         'arguments': arguments,
@@ -107,35 +111,25 @@ def bind_class(library, repo, parser_module, entity):
     """
         Works for classes and covers!
     """
-    methods = []
-    static_methods = []
-    generic_methods = []
+    funcs = []
     fields = []
     static_fields = []
-    constructors = []
     for name, member in entity.members.iteritems():
         if isinstance(member, parser.Method):
             # Yay method! bind it ...
             bindd = bind_function(library, repo, parser_module, entity, member)
-            if name in ('new', 'init') or name.startswith('new~') or name.startswith('init~'):
-                if '~' in name:
-                    cname = name[name.index('~') + 1:]
-                else:
-                    cname = ''
-                if not any(t[0] == cname for t in constructors):
-                    constructors.append((cname, bindd['arguments']))
+            if (bindd['generic_types'] or bindd['generic_return_type']):
+                if bindd['static']:
+                    print '%r: sorry, no static generic methods yet. here is your crowbar' % bindd['name']
+                funcs.append(ffi.Func(name,
+                    generictypes=bindd['generic_types'],
+                    restype=bindd['return_type'],
+                    argtypes=bindd['arguments']))
             else:
-                name = name.replace('~', '_')
-                info = (name, bindd['return_type'], bindd['arguments'])
-                if (bindd['generic_types'] or bindd['generic_return_type']):
-                    if bindd['static']:
-                        raise SorryError('sorry, no static generic methods yet. here is your crowbar')
-                    generic_methods.append((name, bindd['generic_types'], bindd['return_type'], bindd['arguments']))
-                else:
-                    if bindd['static']:
-                        static_methods.append(info)
-                    else:
-                        methods.append(info)
+                funcs.append(ffi.Func(name,
+                restype=bindd['return_type'],
+                argtypes=bindd['arguments'],
+                static=bindd['static']))
         elif isinstance(member, parser.Field):
             if member.type in entity.generic_types:
                 var_type = member.type
@@ -157,12 +151,9 @@ def bind_class(library, repo, parser_module, entity):
         '_name_': entity.name,
         '_fields_': fields,
         '_static_fields_': static_fields,
-        '_methods_': methods,
+        '_methods_': funcs,
         '_extends_': super_class,
-        '_static_methods_': static_methods,
-        '_generic_methods_': generic_methods,
-        '_constructors_': constructors,
-        '_generic_types_': getattr(entity, 'generic_types', None), # isn't needed in Class/Cover, but we do it anyway.
+        '_generictypes_': getattr(entity, 'generic_types', None), # isn't needed in Class/Cover, but we do it anyway.
     }
     module = library.get_module(parser_module.path)
     cls = getattr(module, entity.name)

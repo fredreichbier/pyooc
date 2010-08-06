@@ -11,7 +11,6 @@ test = lib.get_module('test')
 
 g = test.Greeter.new('Mr Banana')
 g.greet()
-print g.contents.msg.value
 
 b = test.BetterGreeter.new_better('Mr Sausage', 1337)
 b.greet()
