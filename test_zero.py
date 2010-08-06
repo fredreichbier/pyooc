@@ -1,6 +1,6 @@
 from pyooc.ffi import Library
-from pyooc.zero import Repository
-from pyooc.zero.llamaize import llamaize_module
+from pyooc.parser import Repository
+from pyooc.bind import llamaize_module
 
 lib = Library('./libtest.so')
 
