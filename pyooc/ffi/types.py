@@ -94,6 +94,26 @@ class Types(object):
         self.SizeT = type("SizeT", (Cover, ctypes.c_size_t), {})
         self.SizeT.bind(numbers, False)
 
+        class Closure(Cover, ctypes.Structure):
+            _fields_ = [
+                ('thunk', ctypes.c_void_p),
+                ('context', ctypes.c_void_p),
+            ]
+
+            @classmethod
+            def from_func(cls, func, restype, argtypes):
+                def wrapper(*args):
+                    print 'CLOSURE ARGS:', args
+                    return func(*(args[:-1]))
+                argtypes = tuple(argtypes) + (ctypes.c_void_p,) # context pointer.
+                functype = ctypes.CFUNCTYPE(restype, *argtypes)
+                return Closure(
+                    thunk=ctypes.cast(functype(wrapper), ctypes.c_void_p),
+                    context=None)
+
+        self.Closure = Closure
+        self.Closure.bind(types, False)
+
         # METACLASS FUN
         class ObjectClassStruct(ctypes.Structure):
             pass

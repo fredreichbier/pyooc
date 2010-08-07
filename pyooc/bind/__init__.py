@@ -61,6 +61,8 @@ def resolve_type(library, repo, parser_module, tag):
             return ctypes.POINTER(resolve_type(library, repo, parser_module, args[0]))
         else:
             raise SorryError('Unknown tag: %r' % tag)
+    elif tag == 'Func': # TODO: specialized funcs
+        return library.types.Closure # TODO?
     else:
         # just a name.
         module = library.get_module(parser_module.path)

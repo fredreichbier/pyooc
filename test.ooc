@@ -86,3 +86,7 @@ someGlobalVariable: String = "<3"
 "Hell yeah! I was called! %d %d" format(Greeter static1337, BetterGreeter anotherStatic666) println()
 
 Greeter staticMimi = "I'm sad."
+
+testCallback: func (callMe: Func (String) -> Int) {
+    "%d = 5" format(callMe("Hello from the ooc world!")) println()
+}

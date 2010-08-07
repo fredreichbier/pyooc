@@ -44,3 +44,8 @@ print g.class_().contents.staticMimi.value
 g.class_().contents.staticMimi = 'HECK I\'M SO HAPPY'
 print g.class_().contents.staticMimi.value
 
+def callback(greet):
+    print 'greet received:', greet.value
+    return 5
+
+print test.testCallback(lib.types.Closure.from_func(callback, lib.types.Int, (lib.types.String,)))
