@@ -527,10 +527,10 @@ class Class(KindOfClass, ctypes.c_void_p):
                     setter = cls._module.library[setter_name]
                     if cls._is_meta: # it's static.
                         setter.argtypes = [argtype]
-                        setter = lambda self, value, s=setter: s(value)
+                        setter = lambda self, value, s=setter: s(cls._module.convert_to_ctypes(value))
                     else:
                         setter.argtypes = [ctypes.c_void_p, argtype]
-                        setter = lambda self, value, s=setter: s(ctypes.byref(self), value)
+                        setter = lambda self, value, s=setter: s(ctypes.byref(self), cls._module.convert_to_ctypes(value))
                 dct[name] = property(getter, setter)
                 fields.append((real_name, argtype))
         # In case we're a metaclass, add the function table.

@@ -50,9 +50,13 @@ class Types(object):
                     cls._module.library.get_module('lang/String').makeStringLiteral(s, len(s)),
                     cls)
 
-            @property
-            def value(self):
+            def _get_value(self):
                 return self.contents._buffer.contents.data
+
+            def _set_value(self, value):
+                self.contents._buffer = self.make(value).contents._buffer # TODO: please kill me
+
+            value = property(_get_value, _set_value)
 
         self.String = String
         String.bind(string, False)
