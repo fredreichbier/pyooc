@@ -366,7 +366,12 @@ class Repository(object):
         # Search for the constructed filename in all subdirectories of `self.path` (depth 2)
         for packagedir in os.listdir(self.path):
             packagedir = os.path.join(self.path, packagedir)
-            for subdir in [''] + os.listdir(packagedir):
+            subdirs = ['']
+            if os.path.isdir(packagedir):
+                subdirs.extend(os.listdir(packagedir))
+            else:
+                packagedir = self.path
+            for subdir in subdirs:
                 subfilename = os.path.join(packagedir, subdir, filename)
                 if os.path.isfile(subfilename):
                     return subfilename

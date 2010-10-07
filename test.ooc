@@ -6,7 +6,7 @@ Greeter: class {
         mimi = "no"
     }
     greet: func {
-        "Hello %s!" format(msg) println()
+        "Hello %s!" format(msg toCString()) println()
     }
 
     helloWorld: func <T> (v: T) {
@@ -15,7 +15,7 @@ Greeter: class {
 
     mimi: String {
         set(=mimi) {
-            "Setter invoked! %s" format(mimi) println()
+            "Setter invoked! %s" format(mimi toCString()) println()
         }
         get {
             "Getter invoked!" println()
@@ -25,7 +25,7 @@ Greeter: class {
 
     staticMimi: static String {
         set(=staticMimi) {
-            "STATIC Setter invoked! %s" format(staticMimi) println()
+            "STATIC Setter invoked! %s" format(staticMimi toCString()) println()
         }
         get {
             "STATIC Getter invoked!" println()
@@ -39,7 +39,7 @@ BetterGreeter: class extends Greeter {
     anotherStatic666: static Int = 666
 
     greet: func {
-        "Hello %s (%d)!" format(msg, count) println()
+        "Hello %s (%d)!" format(msg toCString(), count) println()
     }
 
     gimme: func (a, b, c: String) -> (Int, Int) {

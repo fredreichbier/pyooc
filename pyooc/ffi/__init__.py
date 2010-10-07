@@ -105,6 +105,9 @@ class Module(object):
     def __getitem__(self, key):
         return self.library[self.member_prefix + key]
 
+    def convert_arguments(self, args):
+        return map(self.convert_to_ctypes, args)
+
     def convert_to_ctypes(self, value):
         if value is None:
             return self.library.types.Pointer()
@@ -115,7 +118,7 @@ class Module(object):
         elif isinstance(value, long):
             return self.library.types.Long(value) # TODO: unsigned?
         elif isinstance(value, str):
-            return self.library.types.String(value)
+            return self.library.types.String.make(value)
 #        elif isinstance(value, unicode):
 #            return ctypes.c_wchar_p(value)
         elif hasattr(value, '_as_parameter_'):
@@ -385,7 +388,9 @@ class KindOfClass(object):
                 func.argtypes = [ctypes.POINTER(None)] + argtypes
         else:
             func.argtypes = [ctypes.POINTER(None)]
-        return func
+        def call(*args):
+            return func(*cls._module.convert_arguments(args))
+        return call
 
     @classmethod
     def _static_method(cls, name, restype=None, argtypes=None):
@@ -405,7 +410,9 @@ class KindOfClass(object):
                 return cls._module.generic_function(name, (), restype, argtypes, False, cls._generictypes_)
             else:
                 func.argtypes = argtypes
-        return func
+        def call(*args):
+            return func(*cls._module.convert_arguments(args))
+        return call
 
     @classmethod
     def _create_meta(cls):

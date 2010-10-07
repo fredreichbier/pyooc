@@ -8,6 +8,7 @@ class SorryError(NotImplementedError):
     pass
 
 C_TYPES_MAP = {
+    'ssize_t': ctypes.c_size_t, # TODO: should be signed
     'int': ctypes.c_int,
     'va_list': ctypes.c_void_p,
     'float': ctypes.c_float,
@@ -37,13 +38,16 @@ C_TYPES_MAP = {
     'signed int': ctypes.c_int,
     'unsigned int': ctypes.c_uint,
     'signed char': ctypes.c_char,
+    'ptrdiff_t': ctypes.c_size_t, # TODO
+    'jmp_buf': ctypes.c_void_p,
 }
 
 def resolve_c_type(library, repo, parser_module, typename):
     if typename in C_TYPES_MAP:
         return C_TYPES_MAP[typename]
     elif typename.endswith('*'):
-        return ctypes.POINTER(resolve_c_type(library, repo, parser_module, typename[:-1]))
+        typ = resolve_c_type(library, repo, parser_module, typename[:-1])
+        return ctypes.POINTER(typ)
     else:
         # maybe it's a ooc type.
         try:
@@ -59,10 +63,10 @@ def resolve_type(library, repo, parser_module, tag):
         if mod in ('pointer', 'reference'):
             # pointer and reference have the same handling
             return ctypes.POINTER(resolve_type(library, repo, parser_module, args[0]))
+        elif mod == 'Func':
+            return library.types.Closure # TODO: specialized funcs!
         else:
             raise SorryError('Unknown tag: %r' % tag)
-    elif tag == 'Func': # TODO: specialized funcs
-        return library.types.Closure # TODO?
     else:
         # just a name.
         module = library.get_module(parser_module.path)
@@ -216,7 +220,7 @@ def bind_cover_minimal(library, repo, parser_module, entity):
         fromtype = resolve_c_type(library, repo, parser_module, entity.from_)
         cls = type(entity.name, (fromtype, ffi.Cover), {})
     else:
-        cls = type(entity.name, (ffi.Cover,), {})
+        cls = type(entity.name, (ffi.Cover, ctypes.Structure), {}) # TODO?
     setattr(library.get_module(parser_module.path), entity.name, cls)
 
 def bind_module(library, repo, path):

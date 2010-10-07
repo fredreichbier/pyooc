@@ -7,18 +7,55 @@ class Types(object):
         types = Module(lib, 'lang/types')
         numbers = Module(lib, 'lang/Numbers')
         string = Module(lib, 'lang/String')
+        character = Module(lib, 'lang/Character')
+        buffer_ = Module(lib, 'lang/Buffer')
+        iterators = Module(lib, 'lang/Iterators')
 
         self.Char = type("Char", (Cover, ctypes.c_char), {})
-        self.Char.bind(string, False)
+        self.Char.bind(character, False)
 
         self.UChar = type("UChar", (Cover, ctypes.c_ubyte), {})
-        self.UChar.bind(string, False)
+        self.UChar.bind(character, False)
 
         self.WChar = type("WChar", (Cover, ctypes.c_wchar), {})
-        self.WChar.bind(string, False)
+        self.WChar.bind(character, False)
 
-        self.String = type("String", (Cover, ctypes.c_char_p), {})
-        self.String.bind(string, False)
+        class Iterable(_Class):
+            _generictypes_ = ['T']
+
+        self.Iterable = Iterable
+        self.Iterable.bind(iterators, False)
+
+        class Buffer(_Class):
+            _extends_ = Iterable
+            _fields_ = [
+                ('size', ctypes.c_size_t),
+                ('capacity', ctypes.c_size_t),
+                ('mallocAddr', ctypes.c_char_p),
+                ('data', ctypes.c_char_p),
+            ]
+
+        self.Buffer = Buffer
+        Buffer.bind(buffer_, False)
+
+        class String(_Class):
+            _extends_ = Iterable
+            _fields_ = [
+                ('_buffer', Buffer),
+            ]
+
+            @classmethod
+            def make(cls, s):
+                return ctypes.cast(
+                    cls._module.library.get_module('lang/String').makeStringLiteral(s, len(s)),
+                    cls)
+
+            @property
+            def value(self):
+                return self.contents._buffer.contents.data
+
+        self.String = String
+        String.bind(string, False)
 
         self.Pointer = type("Pointer", (Cover, ctypes.c_void_p), {})
         self.Pointer.bind(types, False)
