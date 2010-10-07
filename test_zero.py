@@ -48,4 +48,4 @@ def callback(greet):
     print 'greet received:', greet.value
     return 5
 
-print test.testCallback(lib.types.Closure.from_func(callback, lib.types.Int, (lib.types.String,)))
+print test.testCallback(lib.types.Closure.from_func(callback, lib.types.Int, (lib.types.String,))).value
