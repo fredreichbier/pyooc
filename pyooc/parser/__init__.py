@@ -13,6 +13,27 @@ class ModuleNotFound(Exception):
 class Entity(object):
     def __init__(self, parent):
         self.parent = parent
+        self.doc = ''
+
+    def get_module(self):
+        return self.parent.get_module()
+
+    def resolve_name(self, name):
+        """
+            try to resolve something! can be a name containing (name)spaces.
+            return None if you couldn't find anything.
+        """
+        if ' ' in name:
+            head, tail = name.split(' ', 1)
+            if hasattr(self, 'members') and head in self.members:
+                return self.members[head].resolve_name(tail)
+            else:
+                return self.parent.resolve_name(name)
+        else:
+            if hasattr(self, 'members') and name in self.members:
+                return self.members[name]
+            else:
+                return self.parent.resolve_name(name)
 
 class PropertyData(object):
     def __init__(self):
@@ -37,6 +58,28 @@ class InterfaceImpl(Entity):
     def read(self, data):
         self.for_ = data['for']
         self.interface = data['interface']
+
+class Enum(Entity):
+    def __init__(self, parent):
+        Entity.__init__(self, parent)
+
+    def read(self, data):
+        self.doc = data['doc']
+        self.name = data['name']
+        self.increment_oper = data['incrementOper']
+        self.increment_step = data['incrementStep']
+        self.elements = elements = odict()
+        for name, mdata in data['elements']:
+            elem = EnumElement(self)
+            elem.read(mdata)
+            elements[name] = elem
+
+class EnumElement(Entity):
+    def read(self, data):
+        self.doc = data['doc'] # empty string
+        self.name = data['name']
+        self.extern = data['extern']
+        self.value = data['value']
 
 class GlobalVariable(Entity):
     def __init__(self, parent):
@@ -173,6 +216,7 @@ class Function(Entity):
         self.generic_types = entity['genericTypes']
         self.extern = entity['extern']
         self.return_type = entity['returnType']
+        self.doc = entity['doc']
         self.arguments = []
         for argobj in entity['arguments']:
             arg = Argument(*argobj)
@@ -198,6 +242,7 @@ class Operator(Entity):
         self.function = Function(self)
         self.function.read(data['function'])
         self.tag = data['tag']
+        self.doc = data['doc']
 
 class Interface(Classlike):
     def __init__(self, parent):
@@ -206,6 +251,7 @@ class Interface(Classlike):
 
     def read(self, data):
         self.name = data['name']
+        self.doc = data['doc']
         self.read_members(data['members'])
 
 class Module(Entity):
@@ -218,6 +264,13 @@ class Module(Entity):
         self.global_imports = None
         self.namespaced_imports = None
         self.uses = None
+
+    @property
+    def name(self):
+        return self.path
+
+    def get_module(self):
+        return self
 
     def resolve_type(self, tag, seen=None):
         """
@@ -241,12 +294,35 @@ class Module(Entity):
             # No? Erroooooooooooor!
             raise ValueError(tag)
 
+    def resolve_name(self, name):
+        if ' ' in name:
+            head, tail = name.split(' ', 1)
+            if head in self.members:
+                return self.members[head].resolve_name(tail)
+            else:
+                try:
+                    return self.resolve_type(head).resolve_name(tail)
+                except ValueError:
+                    return None
+        else:
+            if name in self.members:
+                return self.members[name]
+            else:
+                try:
+                    return self.resolve_type(name)
+                except ValueError:
+                    try:
+                        return self.parent.get_module(name)
+                    except ModuleNotFound:
+                        return None
+
     def read(self, entity):
         # read the global information
         self.path = entity['path']
         self.global_imports = entity['globalImports']
         self.namespaced_imports = entity['namespacedImports']
         self.uses = entity['uses']
+        #self.doc = entity['doc']
         # read the members
         dispatch = {
             'function': self.read_function,
@@ -256,6 +332,7 @@ class Module(Entity):
             'operator': self.read_operator,
             'interface': self.read_interface,
             'interfaceImpl': self.read_interface_impl,
+            'enum': self.read_enum,
         }
         for entry in entity['entities']:
             # TODO: version support
@@ -265,6 +342,11 @@ class Module(Entity):
 
     def read_function(self, entity):
         obj = Function(self)
+        obj.read(entity)
+        self.members[obj.name] = obj
+
+    def read_enum(self, entity):
+        obj = Enum(self)
         obj.read(entity)
         self.members[obj.name] = obj
 
@@ -313,6 +395,7 @@ class Repository(object):
             Use the module cache.
         """
         if module not in self._modules_cache:
+            print module
             self._modules_cache[module] = self._load_module(module)
         return self._modules_cache[module]
 
