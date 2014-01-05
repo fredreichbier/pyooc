@@ -212,15 +212,15 @@ def bind_class(library, repo, parser_module, entity):
     cls.bind(module)
 
 def bind_class_minimal(library, repo, parser_module, entity):
-    cls = type(entity.name, (ffi.Class,), {})
+    cls = type(str(entity.name), (ffi.Class,), {})
     setattr(library.get_module(parser_module.path), entity.name, cls)
 
 def bind_cover_minimal(library, repo, parser_module, entity):
     if entity.from_:
         fromtype = resolve_c_type(library, repo, parser_module, entity.from_)
-        cls = type(entity.name, (fromtype, ffi.Cover), {})
+        cls = type(str(entity.name), (fromtype, ffi.Cover), {})
     else:
-        cls = type(entity.name, (ffi.Cover, ctypes.Structure), {}) # TODO?
+        cls = type(str(entity.name), (ffi.Cover, ctypes.Structure), {}) # TODO?
     setattr(library.get_module(parser_module.path), entity.name, cls)
 
 def bind_module(library, repo, path):
@@ -242,8 +242,9 @@ def bind_module(library, repo, path):
             bind_class(library, repo, entity, member)
         elif isinstance(member, parser.Function):
             bind_function(library, repo, entity, member)
-        elif isinstance(member, parser.GlobalVariable):
-            bind_global_variable(library, repo, entity, member)
+        elif (isinstance(member, parser.GlobalVariable) and
+              not member.name.startswith('__')): # ignore string literals
+                bind_global_variable(library, repo, entity, member)
         else:
             print 'Ignoring member: %s (%r)' % (name, member)
 
